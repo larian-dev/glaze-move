@@ -1,6 +1,6 @@
 import { line } from 'd3-shape';
 import { select } from 'd3-selection';
-import { zoom, type Transform, type ZoomBehavior } from 'd3-zoom';
+import { zoom, zoomIdentity, type Transform, type ZoomBehavior } from 'd3-zoom';
 import type {
   ChartAdapter,
   StullInteraction,
@@ -19,6 +19,7 @@ import {
   type Domain,
   type Label,
   type StullModel,
+  type Viewport,
 } from './stull-chart';
 import type { BoronModel } from './boron-chart';
 import { TRIAXIAL_NUDGE, TRIAXIAL_SNAP, type TriaxialModel } from './triaxial-chart';
@@ -37,6 +38,10 @@ const STULL_CLIP_ID = 'stull-plot-clip';
 const STULL_EMPTY_HATCH_ID = 'stull-emptied-hatch';
 /** Radius of the triaxial point marker, in viewBox units. */
 const TRIAXIAL_POINT_RADIUS = 5;
+/** Clip id for the triaxial map: the magnified content is cut at the frame. */
+const TRIAXIAL_CLIP_ID = 'triaxial-map-clip';
+/** The triaxial map's zoom range, matching the Stull map's. */
+const TRIAXIAL_ZOOM_RANGE: readonly [number, number] = [1, 8];
 
 function svgEl(tag: string, attrs: Record<string, string | number> = {}): SVGElement {
   const node = document.createElementNS(SVG_NS, tag);
@@ -299,6 +304,10 @@ export function createD3Adapter(): ChartAdapter {
   let triaxialEdge: SVGElement | null = null;
   let triaxialMarker: SVGElement | null = null;
   let triaxialLabels: SVGGElement | null = null;
+  /** The group the triaxial gestures transform: raster, triangle and marker. */
+  let triaxialContent: SVGGElement | null = null;
+  /** The map's live zoom transform; the point drag maps the pointer through it. */
+  let triaxialTransform: Transform = zoomIdentity;
   let triaxialModel: TriaxialModel | null = null;
   let triaxialInteraction: TriaxialInteraction | null = null;
   let triaxialDragging = false;
@@ -490,19 +499,28 @@ export function createD3Adapter(): ChartAdapter {
     capturedPointer = null;
   };
 
-  /** Paints the triaxial marker at its screen point. The map carries no readout:
-   *  the shares it stands for are the triangle's own axes, drawn on the map. */
+  /** Paints the triaxial marker at its map point. The map carries no readout:
+   *  the shares it stands for are the triangle's own axes, drawn on the map.
+   *  The radius is counter-scaled, so a magnified map shows the same dot. */
   const paintTriaxialPoint = (point: Pt): void => {
     if (!triaxialMarker) return;
     triaxialMarker.setAttribute('visibility', 'visible');
     triaxialMarker.setAttribute('cx', String(point.x));
     triaxialMarker.setAttribute('cy', String(point.y));
+    triaxialMarker.setAttribute('r', String(TRIAXIAL_POINT_RADIUS / triaxialTransform.k));
   };
 
   const triaxialTernary = (target: TriaxialTarget): TernaryPoint => ({
     a: target.sio2,
     b: target.al2o3,
     c: 1 - target.sio2 - target.al2o3,
+  });
+
+  /** A viewport point read back into the map's own space: the inverse of the
+   *  live zoom transform, so a drag lands where the pointer is at any scale. */
+  const triaxialMapPoint = (view: Pt): Pt => ({
+    x: (view.x - triaxialTransform.x) / triaxialTransform.k,
+    y: (view.y - triaxialTransform.y) / triaxialTransform.k,
   });
 
   /** The share of the triangle under the pointer, snapped while Ctrl is held. */
@@ -512,7 +530,7 @@ export function createD3Adapter(): ChartAdapter {
     if (!model || !root) return null;
     const rect = root.getBoundingClientRect();
     const view = clientToViewBox({ x: event.clientX, y: event.clientY }, rect, model.viewport);
-    const ternary = xyToTernary(view, model.vertices);
+    const ternary = xyToTernary(triaxialMapPoint(view), model.vertices);
     const snap = event.ctrlKey || event.metaKey;
     return {
       sio2: snap ? snapTo(ternary.a, TRIAXIAL_SNAP) : ternary.a,
@@ -593,6 +611,7 @@ export function createD3Adapter(): ChartAdapter {
   };
 
   const releaseTriaxial = (): void => {
+    if (triaxialSvg) select(triaxialSvg).on('zoom', null);
     triaxialSvg = null;
     triaxialImage = null;
     triaxialEdge = null;
@@ -600,11 +619,53 @@ export function createD3Adapter(): ChartAdapter {
     triaxialDragging = false;
     triaxialPointer = null;
     triaxialLabels = null;
+    triaxialContent = null;
+    triaxialTransform = zoomIdentity;
     triaxialModel = null;
   };
 
+  /** The triaxial map's own wheel: zoom at the pointer, shift-drag pan,
+   *  double-click step in. The transform rides on the content group, so the
+   *  published raster magnifies in place and stays registered with the
+   *  calibrated triangle drawn over it. Plain drags are filtered out so they
+   *  keep moving the recipe point, and ctrl-wheel stays with the browser. */
+  const triaxialZoomBehavior: ZoomBehavior = zoom()
+    .scaleExtent([TRIAXIAL_ZOOM_RANGE[0], TRIAXIAL_ZOOM_RANGE[1]])
+    .filter(
+      (event): boolean =>
+        (event instanceof WheelEvent && !event.ctrlKey) ||
+        event.type === 'dblclick' ||
+        (event instanceof MouseEvent && event.shiftKey && event.button === 0) ||
+        (event instanceof TouchEvent && event.touches.length > 1),
+    )
+    .on('zoom', (event) => {
+      triaxialTransform = event.transform;
+      triaxialContent?.setAttribute(
+        'transform',
+        `translate(${event.transform.x} ${event.transform.y}) scale(${event.transform.k})`,
+      );
+      // The marker sits in the scaled group: repaint it so the counter-scale
+      // keeps the dot its own size at every zoom step.
+      if (triaxialModel?.point) paintTriaxialPoint(triaxialModel.point);
+    });
+
+  /** Wires the behavior to the mounted map. The extents are the map box itself:
+   *  the frame stays put while the content under it magnifies. */
+  const attachTriaxialZoom = (root: SVGSVGElement, viewport: Viewport): void => {
+    triaxialZoomBehavior
+      .extent([
+        [0, 0],
+        [viewport.width, viewport.height],
+      ])
+      .translateExtent([
+        [0, 0],
+        [viewport.width, viewport.height],
+      ]);
+    select(root).call(triaxialZoomBehavior);
+  };
+
   /** The triaxial map's keyboard: Escape cancels a drag, the arrows step the
-   *  shares. The map does not zoom, so no other key belongs to it. */
+   *  shares, and ± / 0 drive the zoom the wheel otherwise owns. */
   const attachTriaxialKeys = (root: SVGSVGElement): void => {
     root.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -613,13 +674,18 @@ export function createD3Adapter(): ChartAdapter {
         paintTriaxial(triaxialModel);
         return;
       }
-      nudgeTriaxial(event);
+      if (nudgeTriaxial(event)) return;
+      const node = select(root);
+      if (event.key === '+' || event.key === '=') triaxialZoomBehavior.scaleBy(node, 1.4);
+      else if (event.key === '-' || event.key === '_') triaxialZoomBehavior.scaleBy(node, 1 / 1.4);
+      else if (event.key === '0') triaxialZoomBehavior.transform(node, zoomIdentity);
+      else return;
+      event.preventDefault();
     });
   };
 
-  /** Builds the triaxial skeleton once per host: the stretched raster, the
-   *  calibrated triangle over it, the point marker, and the margin labels. The
-   *  map does not zoom, so nothing here carries a transform. */
+  /** Builds the triaxial skeleton once per host: a clipped frame, the content
+   *  group the map's gestures move, and the margin labels outside both. */
   const mountTriaxialSvg = (host: HTMLElement, model: TriaxialModel): void => {
     host.textContent = '';
     const { viewport } = model;
@@ -635,6 +701,17 @@ export function createD3Adapter(): ChartAdapter {
     root.style.cursor = 'crosshair';
     root.style.touchAction = 'none';
 
+    const defs = svgEl('defs');
+    const clip = svgEl('clipPath', { id: TRIAXIAL_CLIP_ID });
+    clip.appendChild(svgEl('rect', { x: 0, y: 0, width: viewport.width, height: viewport.height }));
+    defs.appendChild(clip);
+
+    // The clip has to sit outside the transform: a clip path is read in the
+    // user space of the element carrying it, so clipping the magnified group
+    // would move the frame along with the raster instead of holding it.
+    const frame = svgEl('g', { 'clip-path': `url(#${TRIAXIAL_CLIP_ID})` });
+    const content = svgEl('g') as SVGGElement;
+
     const image = svgEl('image', {
       href: model.backdrop,
       x: 0,
@@ -646,7 +723,8 @@ export function createD3Adapter(): ChartAdapter {
       // and shifted down ~11px. The calibration page stretches the very same
       // PNG with `width/height: 100%`, and every corner in TRIAXIAL_CALIBRATION
       // is measured against that stretched raster — letterboxing here put the
-      // apex ~24 raster px high and the base ~22 px low.
+      // apex ~24 raster px high and the base ~22 px low. Magnifying the content
+      // group keeps the raster and those corners registered at every scale.
       preserveAspectRatio: 'none',
     });
     const edge = svgEl('path', {
@@ -654,6 +732,8 @@ export function createD3Adapter(): ChartAdapter {
       fill: 'none',
       stroke: '#111111',
       'stroke-width': 1.5,
+      // The triangle magnifies with the raster; its outline keeps its width.
+      'vector-effect': 'non-scaling-stroke',
     });
     const marker = svgEl('circle', {
       cx: 0,
@@ -663,9 +743,13 @@ export function createD3Adapter(): ChartAdapter {
       stroke: '#ffffff',
       'stroke-width': 1.5,
       visibility: 'hidden',
+      'vector-effect': 'non-scaling-stroke',
     });
+    content.append(image, edge, marker);
+    frame.appendChild(content);
+
     const labels = svgEl('g') as SVGGElement;
-    root.append(image, edge, marker, labels);
+    root.append(defs, frame, labels);
     host.appendChild(root);
 
     root.addEventListener('pointerdown', onTriaxialPointerDown);
@@ -678,6 +762,8 @@ export function createD3Adapter(): ChartAdapter {
     triaxialEdge = edge;
     triaxialMarker = marker;
     triaxialLabels = labels;
+    triaxialContent = content;
+    attachTriaxialZoom(root, viewport);
     attachTriaxialKeys(root);
   };
 

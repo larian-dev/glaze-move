@@ -68,7 +68,7 @@ const en = {
   'triaxial.noRoFlux': 'No RO flux in this recipe — add CaO, MgO or another RO to place the point.',
   'triaxial.aria': 'Triaxial chart of the full batch against the selected RO flux.',
   'triaxial.hint':
-    'Drag the point, or focus the map and use the arrow keys — Ctrl snaps to the 0.01 grid. Escape cancels.',
+    'Drag the point, or focus the map and use the arrow keys — Ctrl snaps to the 0.01 grid. Scroll to zoom, shift-drag to pan. Escape cancels.',
 
   'boron.title': 'Boron map',
   'boron.axisX': 'B₂O₃ (0–0.5)',
@@ -205,7 +205,7 @@ const ru: Record<keyof typeof en, string> = {
   'triaxial.noRoFlux': 'В рецепте нет флюса RO — добавьте CaO, MgO или другой RO, чтобы поставить точку.',
   'triaxial.aria': 'Троичная диаграмма полного состава по выбранному флюсу RO.',
   'triaxial.hint':
-    'Перетащите точку или установьте фокус на диаграмме и используйте стрелки — Ctrl притягивает к сетке 0,01. Escape — отмена.',
+    'Перетащите точку или установьте фокус на диаграмме и используйте стрелки — Ctrl притягивает к сетке 0,01. Колесо — масштаб, Shift-перетаскивание — панорама. Escape — отмена.',
 
   'boron.title': 'График по бору',
   'boron.axisX': 'B₂O₃ (0–0,5)',

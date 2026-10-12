@@ -51,9 +51,10 @@ no backend, no account, no network traffic.
   linear °C: its only source labels are six Orton cones Δ06–Δ10
   (`resources/chart1/chart/drawings/drawing1.xml`, archived locally, not part of
   the repo). The triaxial map zooms 1–8× under the
-  wheel — drag to pan, double-click to step in, + / − / 0 on the focused map — magnifying the
-  raster and the calibrated triangle together, clipped to the frame; strokes, the point
-  marker and the margin readouts keep their size.
+  wheel — shift-drag to pan, double-click to step in, + / − / 0 on the focused map —
+  magnifying the raster and the calibrated triangle together, clipped to the frame;
+  strokes, the point marker and the margin readouts keep their size, and a plain drag
+  still moves the point, read through the live zoom.
 - **History, transfer, materials** — session checkpoints with restore, taken when an amount
   changes or the point is dragged (adding, re-pointing or removing a row does not); JSON
   export for the recipe and for the local materials (plain files, no encoding); recipe

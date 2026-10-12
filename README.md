@@ -21,6 +21,7 @@ Inspired by and built on the published work of [calc.portalkeramiki.ru](https://
   shows where a drag lands; the hatched band outside it marks targets that would empty a
   component.
 - **Triaxial and boron maps** — the recipe plotted on published reference diagrams; the
+  triaxial map zooms 1–8× under the wheel (shift-drag pans, ± / 0 from the keyboard); the
   boron map's vertical axis is cone-stepped (Orton cones Δ06–Δ10), not linear °C.
 - **Drag clamps** — *Clamp additions* keeps every addition's chemistry pinned while you
   drag; *Clamp flux ratio* refuses drags that would shift the R₂O:RO balance; *Clamp
@@ -80,8 +81,9 @@ line. Materials you add yourself are stored in your browser only.
   контур показывает, куда перенос проходит; штриховка снаружи — цели, при которых
   компонент ушёл бы в ноль.
 - **Троичная диаграмма и диаграмма бора** — рецепт на опубликованных справочных
-  диаграммах; вертикальная ось диаграммы бора идёт по конусам (ортоновские конусы
-  Δ06–Δ10), а не по линейным °C.
+  диаграммах; троичная диаграмма масштабируется колесом 1–8× (Shift-перетаскивание —
+  панорама, ± / 0 — с клавиатуры); вертикальная ось диаграммы бора идёт по конусам
+  (ортоновские конусы Δ06–Δ10), а не по линейным °C.
 - **Фиксаторы при перетаскивании** — «Фиксировать добавки» удерживает химию каждой
   добавки, пока вы тянете точку; «Фиксировать соотношение флюсов» отвергает переносы,
   сдвигающие баланс R₂O:RO; «Фиксировать бор» удерживает B₂O₃ глазури, пока точка
