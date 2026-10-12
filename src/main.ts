@@ -6,6 +6,7 @@ import { loadLocalMaterials } from './pages/materials';
 import type { Material } from './types';
 import { DEFAULT_FORM, loadForm, saveForm } from './state/persistence';
 import { el, option } from './ui/dom';
+import { createPricingOverlay } from './ui/pricing';
 
 type PageHandle = { setLang: (lang: Lang) => void };
 
@@ -13,6 +14,10 @@ type NavLink = { route: string; key: TranslationKey };
 
 const MATERIALS_ROUTE = '/materials';
 const CALIBRATE_ROUTE = '/calibrate';
+
+/** The project's public repository, linked from the header. */
+const REPO_URL = 'https://github.com/larian-dev/glaze-move';
+
 const NAV_LINKS: NavLink[] = [
   { route: '/', key: 'app.nav.calculator' },
   { route: MATERIALS_ROUTE, key: 'app.nav.materials' },
@@ -28,11 +33,15 @@ function required<T>(node: T | null): T {
 const app = required(document.querySelector<HTMLElement>('#app'));
 const brand = required(document.querySelector<HTMLElement>('.app-brand'));
 const nav = required(document.querySelector<HTMLElement>('.app-nav'));
+const repoHost = required(document.querySelector<HTMLElement>('.app-repo'));
 const langHost = required(document.querySelector<HTMLElement>('.app-lang'));
 
 let lang: Lang = loadForm()?.lang ?? detectLang();
 let localMaterials: Material[] = loadLocalMaterials();
 let page: PageHandle | null = null;
+
+/** The Pricing easter egg sits outside the router: it overlays whatever page is up. */
+const pricing = createPricingOverlay();
 
 /** The language lives in the same saved form as the recipe, so it survives a reload. */
 function persistLang(next: Lang): void {
@@ -63,6 +72,17 @@ function renderHeader(): void {
         text: t(lang, link.key),
         attrs: { href: `#${link.route}`, ...(active ? { 'aria-current': 'page' } : {}) },
       });
+    }),
+    // Pricing is a joke, not a route: the entry opens the overlay in place.
+    pricing.navEntry(lang),
+  );
+  pricing.setLang(lang);
+
+  repoHost.replaceChildren(
+    el('a', {
+      class: 'app-link',
+      text: 'GitHub',
+      attrs: { href: REPO_URL, rel: 'noopener noreferrer' },
     }),
   );
 

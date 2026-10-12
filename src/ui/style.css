@@ -308,6 +308,26 @@ h3 {
   margin-top: 10px;
 }
 
+/* The Pricing easter egg: the clip alone on a dimmed backdrop, one run per
+   click. The dialog box is exactly the video, so a click on the dimmed area
+   lands on the dialog element. */
+.pricing-dialog {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.pricing-dialog::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+
+.pricing-video {
+  display: block;
+  width: min(85vw, 70vh, 640px);
+  height: auto;
+  border-radius: 6px;
+}
+
 
 .recipe-section + .recipe-section {
   margin-top: 14px;

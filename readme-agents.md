@@ -283,6 +283,10 @@ publishes it on every push to `main`; enable it once under Settings → Pages �
 *GitHub Actions*. Share links carry the recipe in the query string (`…/?recipe=…#/`),
 which Pages resolves like any static file.
 
+The app shell is `index.html` + `src/main.ts`: the header carries the route links, a link
+to the repository, and the *Pricing* easter egg — a nav entry that is not a route; it opens
+an overlay playing `src/assets/pricing.mp4` once, in place (`src/ui/pricing.ts`).
+
 ## Accuracy & data
 
 Oxide and material data (`src/data/*.json`) is the single source of truth; expansion
