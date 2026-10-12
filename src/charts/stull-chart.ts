@@ -83,6 +83,14 @@ export const STULL_TICK_STEP_X = 0.6;
 export const STULL_TICK_STEP_Y = 0.1;
 export const STULL_NUDGE_X = 0.25;
 export const STULL_NUDGE_Y = 0.05;
+/** Ctrl + drag (or Ctrl + arrow) pulls the target onto this grid. */
+export const STULL_SNAP_X = 0.1;
+export const STULL_SNAP_Y = 0.01;
+
+/** `value` pulled onto the nearest multiple of `step`, float noise trimmed. */
+export function snapTo(value: number, step: number): number {
+  return Number((Math.round(value / step) * step).toFixed(6));
+}
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;

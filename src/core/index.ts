@@ -22,7 +22,16 @@ export {
   type MaterialChemistry,
   type MoleCoefficients,
 } from './geometry';
-export { solveForStullTarget, type SolveRejection, type SolveResult } from './solve';
+export {
+  solveForBoronTarget,
+  solveForStullTarget,
+  solveForTarget,
+  triaxialAxes,
+  type SolveAxis,
+  type SolveRejection,
+  type SolveResult,
+  type SolveTarget,
+} from './solve';
 export {
   feasibleAreas,
   FEASIBLE_GRID_STEP_X,
@@ -33,10 +42,13 @@ export {
   type Point,
 } from './hull';
 export {
+  aluminaRole,
   costPerKg,
   cte,
   firingTemperatureK,
+  kForCelsius,
   loiPercent,
+  meltabilityCoefficients,
   meltabilityK,
   siAlRatio,
   type FiringTemperature,

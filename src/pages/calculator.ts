@@ -1,5 +1,12 @@
 import { createD3Adapter } from '../charts/adapter-d3';
-import type { ChartAdapter, StullInteraction } from '../charts/adapter';
+import type {
+  BoronInteraction,
+  BoronTarget,
+  ChartAdapter,
+  StullInteraction,
+  TriaxialInteraction,
+  TriaxialTarget,
+} from '../charts/adapter';
 import { buildStullModel, type Domain } from '../charts/stull-chart';
 import type { StullModel } from '../charts/stull-chart';
 import type { Pt, TriaxialRo } from '../charts/stull-data';
@@ -21,8 +28,11 @@ import {
   moleCoefficients,
   molePercent,
   siAlRatio,
+  solveForBoronTarget,
   solveForStullTarget,
+  solveForTarget,
   stullPoint,
+  triaxialAxes,
   unityFormula,
 } from '../core';
 import type { SolveRejection } from '../core';
@@ -253,6 +263,7 @@ export function renderCalculatorPage(
   const triaxialNotice = el('p', { class: 'notice', attrs: { role: 'status', 'aria-live': 'polite' } });
 
   const boronTitle = el('h2', { class: 'panel-title' });
+  const boronHint = el('p', { class: 'panel-hint' });
   const boronChart = el('div', { class: 'chart chart--boron' });
   const boronStatus = el('p', { class: 'panel-status', attrs: { role: 'status', 'aria-live': 'polite' } });
   const boronNotice = el('p', { class: 'notice', attrs: { role: 'status', 'aria-live': 'polite' } });
@@ -317,6 +328,7 @@ export function renderCalculatorPage(
 
   const boronPanel = el('div', { class: 'panel panel--boron' }, [
     el('div', { class: 'panel-head' }, [boronTitle]),
+    boronHint,
     boronChart,
     boronStatus,
     boronNotice,
@@ -472,6 +484,35 @@ function paintRoTools(): void {
     adapter?.updateStull(computed.stull);
   }
 
+  /** The "this would drop to zero" message for a drag refused at the empties. */
+  function emptiedNotice(snapshot: FormState, emptied: number[]): string {
+    const names = emptiedNames(snapshot.rows, emptied);
+    return t(snapshot.lang, names.length === 1 ? 'stull.emptied' : 'stull.emptiedMany', {
+      material: names[0] ?? '',
+      materials: names.join(', '),
+    });
+  }
+
+  /** Writes a solved refit: persisted, checkpointed and recorded — and the
+   *  editor repainted, since the amounts are no longer the entered ones. */
+  function commitSolved(rows: RecipeRow[]): void {
+    state.set({ rows });
+    editor.render(state.get().rows, state.get().lang);
+    flushCheckpoint();
+    history.record(state.get().rows);
+  }
+
+  /** A refused triaxial or boron drag: say why, repaint the committed model. */
+  function rejectMapDrag(notice: string, which: 'triaxial' | 'boron'): void {
+    if (which === 'triaxial') {
+      setText(triaxialNotice, notice);
+      adapter?.updateTriaxial(computed.triaxial);
+      return;
+    }
+    setText(boronNotice, notice);
+    adapter?.updateBoron(computed.boron);
+  }
+
   function onStullTarget(target: Pt): void {
     const snapshot = state.get();
     clearNotice();
@@ -492,21 +533,64 @@ function paintRoTools(): void {
       // interval — which drops that material out of the base. Refused for the
       // same reason the region leaves it out: the user should not lose a material
       // to a drag they read as a reposition.
-      const names = emptiedNames(snapshot.rows, solved.emptied);
-      const one = names.length === 1;
-      rejectStullDrag(
-        t(snapshot.lang, one ? 'stull.emptied' : 'stull.emptiedMany', {
-          material: names[0] ?? '',
-          materials: names.join(', '),
-        }),
-      );
+      rejectStullDrag(emptiedNotice(snapshot, solved.emptied));
       return;
     }
 
-    state.set({ rows: solved.rows });
-    editor.render(state.get().rows, snapshot.lang);
-    flushCheckpoint();
-    history.record(state.get().rows);
+    commitSolved(solved.rows);
+  }
+
+  /** The triaxial map's drag: the point is the (SiO₂, Al₂O₃, RO) split of the
+   *  unity formula, so its two coordinates solve exactly like the Stull ones —
+   *  over the triangle's own basis rather than the flux, and against whichever
+   *  RO corner the map is drawn on. */
+  function onTriaxialTarget(target: TriaxialTarget): void {
+    const snapshot = state.get();
+    setText(triaxialNotice, '');
+    const roFlux = computed.roSelected;
+    if (roFlux === null) return;
+    const solved = solveForTarget(
+      snapshot.rows,
+      materials,
+      { ...triaxialAxes(roFlux), x: target.sio2, y: target.al2o3 },
+      {
+        includeAdditions: snapshot.includeAdditions,
+        clampFluxRatio: snapshot.clampFluxRatio,
+        clampAdditions: snapshot.clampAdditions,
+        clampBoron: snapshot.clampBoron,
+      },
+    );
+    if (!solved.ok) {
+      rejectMapDrag(t(snapshot.lang, snapbackKey(solved.reason)), 'triaxial');
+      return;
+    }
+    if (solved.emptied.length > 0) {
+      rejectMapDrag(emptiedNotice(snapshot, solved.emptied), 'triaxial');
+      return;
+    }
+    commitSolved(solved.rows);
+  }
+
+  /** The boron map's drag: unity B₂O₃ against the calculated firing temperature,
+   *  fitted with as few movers as the two axes allow — and refused, rather than
+   *  silently mistargeted, where the temperature estimate is discontinuous. */
+  function onBoronTarget(target: BoronTarget): void {
+    const snapshot = state.get();
+    setText(boronNotice, '');
+    const solved = solveForBoronTarget(snapshot.rows, materials, target, {
+      includeAdditions: snapshot.includeAdditions,
+      clampFluxRatio: snapshot.clampFluxRatio,
+      clampAdditions: snapshot.clampAdditions,
+    });
+    if (!solved.ok) {
+      rejectMapDrag(t(snapshot.lang, snapbackKey(solved.reason)), 'boron');
+      return;
+    }
+    if (solved.emptied.length > 0) {
+      rejectMapDrag(emptiedNotice(snapshot, solved.emptied), 'boron');
+      return;
+    }
+    commitSolved(solved.rows);
   }
 
   const interaction: StullInteraction = {
@@ -521,6 +605,16 @@ function paintRoTools(): void {
       computed = compute(state.get(), materials, stullZoom);
       adapter?.updateStull(computed.stull);
     },
+  };
+
+  const triaxialInteraction: TriaxialInteraction = {
+    onTarget: onTriaxialTarget,
+    onCancel: () => rejectMapDrag('', 'triaxial'),
+  };
+
+  const boronInteraction: BoronInteraction = {
+    onTarget: onBoronTarget,
+    onCancel: () => rejectMapDrag('', 'boron'),
   };
 
   exportButton.addEventListener('click', () => exportToFile(persistable(state.get())));
@@ -576,6 +670,7 @@ function paintRoTools(): void {
     setText(triaxialTitle, t(next, 'triaxial.title'));
     setText(triaxialHint, t(next, 'triaxial.hint'));
     setText(boronTitle, t(next, 'boron.title'));
+    setText(boronHint, t(next, 'boron.hint'));
     setText(transferTitle, t(next, 'transfer.title'));
 
     roTools.setAttribute('aria-label', t(next, 'triaxial.roFlux'));
@@ -624,8 +719,8 @@ function paintRoTools(): void {
   history.record(state.get().rows);
   adapter = createD3Adapter();
   adapter.mountStull(stullChart, computed.stull, interaction);
-  adapter.mountTriaxial(triaxialChart, computed.triaxial);
-  adapter.mountBoron(boronChart, computed.boron);
+  adapter.mountTriaxial(triaxialChart, computed.triaxial, triaxialInteraction);
+  adapter.mountBoron(boronChart, computed.boron, boronInteraction);
 
   return {
     setLang(next: Lang): void {

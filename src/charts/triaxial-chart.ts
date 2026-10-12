@@ -36,6 +36,11 @@ export const TRIAXIAL_VIEWPORT: Viewport = {
   margin: { top: 24, right: 20, bottom: 34, left: 34 },
 };
 
+/** Ctrl + drag (or Ctrl + arrow) pulls the point onto this grid of shares. */
+export const TRIAXIAL_SNAP = 0.01;
+/** Plain arrow step through the shares; Ctrl walks the snap grid instead. */
+export const TRIAXIAL_NUDGE = 0.05;
+
 /**
  * The triangle used when a flux has no calibration at all: a symmetric
  * three-corner layout in the plot box — top-centre apex, bottom corners. Shared

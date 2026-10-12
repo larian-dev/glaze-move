@@ -31,6 +31,12 @@ export const BORON_VIEWPORT: Viewport = {
 };
 
 export const BORON_TICK_STEP_X = 0.05;
+/** Ctrl + drag (or Ctrl + arrow) pulls the point onto this grid. */
+export const BORON_SNAP_X = 0.01;
+export const BORON_SNAP_Y = 5;
+/** Plain arrow steps; Ctrl walks the snap grid instead. */
+export const BORON_NUDGE_X = 0.02;
+export const BORON_NUDGE_Y = 20;
 
 /**
  * The y-axis points of the source chart, bottom first — the only y-axis labels
@@ -66,6 +72,29 @@ function coneFraction(celsius: number): number {
     }
   }
   return 1;
+}
+
+/** Inverse of `coneFraction`: the temperature a fraction of the plot height
+ *  reads, interpolated between the published cone rows. */
+export function celsiusAtFraction(fraction: number): number {
+  const steps = BORON_CONE_AXIS.length - 1;
+  const bottom = BORON_CONE_AXIS[0];
+  const top = BORON_CONE_AXIS[steps];
+  if (!bottom || !top) return 0;
+  if (fraction <= 0) return bottom.celsius;
+  if (fraction >= 1) return top.celsius;
+  const scaled = fraction * steps;
+  const index = Math.min(steps - 1, Math.floor(scaled));
+  const low = BORON_CONE_AXIS[index];
+  const high = BORON_CONE_AXIS[index + 1];
+  if (!low || !high) return top.celsius;
+  return low.celsius + (scaled - index) * (high.celsius - low.celsius);
+}
+
+/** Screen y of a firing temperature inside the plot box — the cone-stepped
+ *  axis the map is read on. */
+export function boronPlotY(plot: Rect, celsius: number): number {
+  return plot.y + plot.height * (1 - coneFraction(celsius));
 }
 
 /**
@@ -118,7 +147,7 @@ export function buildBoronModel(input: BoronModelInput): BoronModel {
       x: plot.x - 7,
       // The exact row of the cone; the label's 4px baseline offset is applied
       // where the text is drawn, so the grid line stays on the row.
-      y: plot.y + plot.height * (1 - coneFraction(entry.celsius)),
+      y: boronPlotY(plot, entry.celsius),
       opacity: 0.7,
     })),
     xTitle: { text: t(input.lang, 'boron.axisX'), x: plot.x + plot.width, y: plot.y + plot.height + 33, opacity: 1 },
@@ -145,7 +174,7 @@ export function buildBoronModel(input: BoronModelInput): BoronModel {
     annotations: BORON_ANNOTATIONS.map((label) => ({
       text: label.text,
       x: transform.toScreen(label.at).x,
-      y: plot.y + plot.height * (1 - coneFraction(label.at.y)),
+      y: boronPlotY(plot, label.at.y),
       opacity: 0.95,
     })),
     // Values outside the published map are pinned to its edge, as on the Stull
@@ -153,7 +182,7 @@ export function buildBoronModel(input: BoronModelInput): BoronModel {
     point: point
       ? {
           x: transform.toScreen(point).x,
-          y: plot.y + plot.height * (1 - coneFraction(point.y)),
+          y: boronPlotY(plot, point.y),
         }
       : null,
     aria: t(input.lang, 'boron.aria'),

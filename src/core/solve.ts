@@ -1,10 +1,14 @@
 import type { Material, RecipeRow } from '../types';
+import { OXIDE_BY_FORMULA } from '../data/catalog';
+import { batchMassPercent, batchMoles, chemistryRows } from './batch';
 import {
   materialChemistry,
   oxideMolesPerPart,
   type MaterialChemistry,
   type MoleCoefficients,
 } from './geometry';
+import { aluminaRole, firingTemperatureK, kForCelsius, meltabilityCoefficients, meltabilityK } from './ratios';
+import { unityFormula } from './umf';
 
 export type SolveRejection =
   | 'too-few-rows'
@@ -14,6 +18,8 @@ export type SolveRejection =
   | 'negative-amount'
   | 'no-flux-total'
   | 'flux-ratio'
+  | 'no-temperature-carrier'
+  | 'temperature-drift'
   | 'over-constrained';
 
 export type SolveResult =
@@ -37,6 +43,11 @@ export type SolveOptions = {
    *  recipe that cannot afford one is refused as over-constrained. A batch
    *  without B₂O₃ has nothing to hold and the clamp drops out. */
   clampBoron?: boolean;
+  /** Seat the fewest movers the target needs — the two coordinate rows — instead
+   *  of the usual three. Nothing is left over to spend on the R₂O:RO balance, so
+   *  the ratio drifts (or, with `clampFluxRatio`, most targets are refused); what
+   *  it buys is the smallest diff: at most two materials change. */
+  leastChange?: boolean;
   /** Per-material chemistry shared across many solves. A zone scan samples
    *  hundreds of targets over the same recipe, so `hull` derives each
    *  material's coefficients once and passes the map in; a bare call derives
@@ -48,9 +59,76 @@ export type SolveOptions = {
 const DETERMINANT_EPSILON = 1e-9;
 /** Pivot guard for the linear solve: below this the elimination is unstable. */
 const PIVOT_EPSILON = 1e-12;
+/** A boron-map temperature target has to come back within this many degrees. */
+const TEMPERATURE_TOLERANCE = 1;
+
+/**
+ * One chart coordinate: `value = Σ amount·of / Σ amount·per`, with both sides
+ * linear in the row amounts — the shape every draggable axis has to have. The
+ * Stull map reads (SiO₂, Al₂O₃) over the typed flux; the triaxial map reads the
+ * same two over the triangle's three corners; the boron map reads unity B₂O₃
+ * over the flux and the meltability ratio K over its own weighted sums.
+ */
+export type SolveAxis = {
+  of: (chemistry: MaterialChemistry) => number;
+  per: (chemistry: MaterialChemistry) => number;
+  /** Reported when no row in the pool can carry this axis at all. */
+  empty: SolveRejection;
+};
+
+/** Where a drag wants a chart's two coordinates to land. */
+export type SolveTarget = {
+  first: SolveAxis;
+  second: SolveAxis;
+  x: number;
+  y: number;
+};
+
+/** Stull coordinates, so the drag functions can share one shapes. */
+export const STULL_AXES: { first: SolveAxis; second: SolveAxis } = {
+  first: {
+    of: (chemistry) => chemistry.coefficients.silica,
+    per: (chemistry) => chemistry.coefficients.flux,
+    empty: 'no-flux',
+  },
+  second: {
+    of: (chemistry) => chemistry.coefficients.alumina,
+    per: (chemistry) => chemistry.coefficients.flux,
+    empty: 'no-alumina-carrier',
+  },
+};
+
+/**
+ * Triaxial coordinates: the plotted point is the (SiO₂, Al₂O₃, RO) split of the
+ * unity formula, `roFlux` naming the RO corner the map is drawn against. Its
+ * basis is the triangle's own three corners, not the flux — the two axes share
+ * one denominator, so a scene change of scale leaves the shares alone.
+ */
+export function triaxialAxes(roFlux: string): { first: SolveAxis; second: SolveAxis } {
+  const basis = (chemistry: MaterialChemistry): number =>
+    chemistry.coefficients.silica +
+    chemistry.coefficients.alumina +
+    oxideMolesPerPart(chemistry.profile, roFlux);
+  return {
+    first: { of: (chemistry) => chemistry.coefficients.silica, per: basis, empty: 'no-flux' },
+    second: { of: (chemistry) => chemistry.coefficients.alumina, per: basis, empty: 'no-alumina-carrier' },
+  };
+}
+
+/** The boron map's temperature axis: K, the meltability ratio, whose per-part
+ *  weights come from the same coefficients `meltabilityK` applies to the batch. */
+function meltabilityAxis(role: 'flux' | 'refractory'): SolveAxis {
+  return {
+    of: (chemistry) => meltabilityCoefficients(chemistry.profile, OXIDE_BY_FORMULA, role).a,
+    per: (chemistry) => meltabilityCoefficients(chemistry.profile, OXIDE_BY_FORMULA, role).b,
+    empty: 'no-temperature-carrier',
+  };
+}
 
 type Candidate = {
   rowIndex: number;
+  /** Everything the fit reads off the material, derived once per scan. */
+  chemistry: MaterialChemistry;
   /** Coefficient vector per amount-part: SiO₂, Al₂O₃, R₂O, RO. */
   coefficients: MoleCoefficients;
 };
@@ -70,7 +148,8 @@ function candidatesOf(
     if (row.kind !== kind || row.amount === 0) return;
     const material = materials.get(row.materialId);
     if (!material) return;
-    candidates.push({ rowIndex, coefficients: chemistryOf(material).coefficients });
+    const chemistry = chemistryOf(material);
+    candidates.push({ rowIndex, chemistry, coefficients: chemistry.coefficients });
   });
   return candidates;
 }
@@ -78,23 +157,30 @@ function candidatesOf(
 interface Carry {
   rowIndex: number;
   coefficients: MoleCoefficients;
-  silica: number;
-  alumina: number;
   r2o: number;
   ro: number;
   flux: number;
+  /** Per-part values of the target's two coordinate axes, read once here so
+   *  seating and the equations never re-derive a profile. */
+  firstOf: number;
+  firstPer: number;
+  secondOf: number;
+  secondPer: number;
 }
 
-function carry(candidates: Candidate[], rows: RecipeRow[]): Carry[] {
+function carry(candidates: Candidate[], rows: RecipeRow[], target: SolveTarget): Carry[] {
   return candidates.map((c) => {
     const amount = rows[c.rowIndex]?.amount ?? 0;
     return {
-      ...c,
-      silica: amount * c.coefficients.silica,
-      alumina: amount * c.coefficients.alumina,
+      rowIndex: c.rowIndex,
+      coefficients: c.coefficients,
       r2o: amount * c.coefficients.r2o,
       ro: amount * c.coefficients.ro,
       flux: amount * c.coefficients.flux,
+      firstOf: target.first.of(c.chemistry),
+      firstPer: target.first.per(c.chemistry),
+      secondOf: target.second.of(c.chemistry),
+      secondPer: target.second.per(c.chemistry),
     };
   });
 }
@@ -125,19 +211,21 @@ function sameProfile(a: number[], b: number[]): boolean {
 }
 
 /**
- * Seats the rows the fit will move: the most concentrated SiO₂ source, the most
- * concentrated Al₂O₃ source of the rest, then `count - 2` more by how hard they
- * swing the R₂O:RO balance. The first two seats go by per-part concentration,
- * not by total carry: a drag needs decoupled control, and only a pure source
- * moves one axis without dragging the others along — a large dilute row
- * out-carries the pure one by sheer amount, freezes it, and leaves the fit
- * trying to steer x by destroying flux, which collapses the reachable set to a
- * strip and hands the family a near-singular direction. The seats past the
- * second buy degrees of freedom for holds — each hold is a row over amounts
- * the fit already has, so it needs a mover of its own. A row whose chemistry is
- * a copy of one already seated is skipped: a duplicate column cannot be solved
- * for and would only make the fit singular. Returns null when the recipe has
- * no alumina source at all.
+ * Seats the rows the fit will move: the strongest carrier of each target
+ * coordinate, then `count - 2` more by how hard they swing the R₂O:RO balance.
+ * The axes name their own carriers — the Stull and triaxial maps seat the most
+ * concentrated SiO₂ source and the most concentrated Al₂O₃ source of the rest,
+ * the boron map the richest B₂O₃ source and the row that moves K hardest. The
+ * seats go by per-part concentration, not by total carry: a drag needs decoupled
+ * control, and only a pure source moves one axis without dragging the others
+ * along — a large dilute row out-carries the pure one by sheer amount, freezes
+ * it, and leaves the fit trying to steer x by destroying flux, which collapses
+ * the reachable set to a strip and hands the family a near-singular direction.
+ * The seats past the second buy degrees of freedom for holds — each hold is a
+ * row over amounts the fit already has, so it needs a mover of its own. A row
+ * whose chemistry is a copy of one already seated is skipped: a duplicate
+ * column cannot be solved for and would only make the fit singular. Returns
+ * null when no row can carry the second coordinate.
  */
 function chooseCarriers(
   parts: Carry[],
@@ -152,16 +240,16 @@ function chooseCarriers(
     profiles.push(profileOf(candidate.coefficients));
   };
 
-  const silica = parts.reduce((best, c) => (c.coefficients.silica > best.coefficients.silica ? c : best));
-  seat(silica);
-  const alumina = parts
-    .filter((c) => c !== silica && c.coefficients.alumina > 0)
+  const first = parts.reduce((best, c) => (c.firstOf > best.firstOf ? c : best));
+  seat(first);
+  const second = parts
+    .filter((c) => c !== first && c.secondOf > 0)
     .reduce<Carry | undefined>(
-      (best, c) => (!best || c.coefficients.alumina > best.coefficients.alumina ? c : best),
+      (best, c) => (!best || c.secondOf > best.secondOf ? c : best),
       undefined,
     );
-  if (!alumina) return null;
-  seat(alumina);
+  if (!second) return null;
+  seat(second);
 
   while (chosen.length < count) {
     let next: Carry | null = null;
@@ -388,8 +476,13 @@ function solveFit(equations: SolveEquation[], unknownCount: number): FitFamily |
 }
 
 /**
- * Refits the base to the dragged Stull target by solving the silica and alumina
+ * Refits the base to a dragged chart target by solving the two coordinate
  * carriers exactly, then spending the remaining freedom on the R₂O:RO balance.
+ * Every draggable map shares this body: `target` names the two coordinate axes
+ * and the values wanted. The Stull map reads (SiO₂, Al₂O₃) over the typed flux,
+ * the triaxial map the same two over the triangle's corners, and the boron map
+ * unity B₂O₃ against the meltability ratio K — see `solveForStullTarget`,
+ * `triaxialAxes` and `solveForBoronTarget`.
  *
  * Two hard constraints and three free carriers leave a one-parameter family of
  * exact solutions, x(t) = p + t·q. The ratio is R(t) = (N0 + t·N1)/(D0 + t·D1),
@@ -419,10 +512,10 @@ function solveFit(equations: SolveEquation[], unknownCount: number): FitFamily |
  * totals exactly 100. All the ratios survive that scaling, so the pinned unity
  * values and the dragged point both come out where they were fitted.
  */
-export function solveForStullTarget(
+export function solveForTarget(
   rows: RecipeRow[],
   materials: Map<string, Material>,
-  target: { x: number; y: number },
+  target: SolveTarget,
   options: SolveOptions = {},
 ): SolveResult {
   const {
@@ -430,6 +523,7 @@ export function solveForStullTarget(
     clampFluxRatio = false,
     clampAdditions = true,
     clampBoron = false,
+    leastChange = false,
   } = options;
   // One chemistry derivation per material per scan: `hull` passes a cache in so
   // the sampled targets reuse it; a bare call derives as it goes.
@@ -453,7 +547,7 @@ export function solveForStullTarget(
   // The displayed chemistry — the basis the point divides over, and therefore
   // the basis the restored ratio and the pinned unity values are measured on —
   // is every main row plus every addition while the UMF switch is on.
-  const display = [...carry(mainCands, rows), ...carry(addCands, rows)];
+  const display = [...carry(mainCands, rows, target), ...carry(addCands, rows, target)];
   if (display.every((c) => c.flux <= 0)) return { ok: false, reason: 'no-flux' };
   const displayFlux = display.reduce((sum, c) => sum + c.flux, 0);
   const startR2o = display.reduce((sum, c) => sum + c.r2o, 0);
@@ -500,21 +594,16 @@ export function solveForStullTarget(
   // the ratio, and the clamp loses the very thing it spends.
   const usable = display.filter(
     (carried) =>
-      carried.coefficients.silica > 0 || carried.coefficients.alumina > 0 || carried.coefficients.flux > 0,
+      carried.firstOf > 0 || carried.firstPer > 0 || carried.secondOf > 0 || carried.secondPer > 0,
   ).length;
-  const seats = Math.min(3 + holds.length, Math.max(2, usable - 1));
-  const moving = chooseCarriers(carry(pool, rows), startR2o, startRo, seats);
-  if (!moving) return { ok: false, reason: 'no-alumina-carrier' };
+  const seats = Math.min((leastChange ? 2 : 3) + holds.length, Math.max(2, usable - 1));
+  const moving = chooseCarriers(carry(pool, rows, target), startR2o, startRo, seats);
+  if (!moving) return { ok: false, reason: target.second.empty };
 
   // A clamped addition keeps the unity value of its dominant oxide — the figure
   // a formula actually reads — while its own parts are solved for, so the
   // addition follows the base instead of its recipe percentage being held.
-  const pinned: {
-    rowIndex: number;
-    coefficients: MoleCoefficients;
-    molesPerPart: number;
-    unityValue: number;
-  }[] = [];
+  const pinned: { carried: Carry; molesPerPart: number; unityValue: number }[] = [];
   if (clampAdditions) {
     for (const carried of display) {
       const row = rows[carried.rowIndex];
@@ -524,44 +613,44 @@ export function solveForStullTarget(
       // Nothing to hold: the row stays a constant at its entered amount.
       if (!held) continue;
       pinned.push({
-        rowIndex: carried.rowIndex,
-        coefficients: carried.coefficients,
+        carried,
         molesPerPart: held.moles,
         unityValue: (row.amount * held.moles) / displayFlux,
       });
     }
   }
 
-  // Unknowns: the carriers, then one amount per pinned addition. Every other
-  // displayed row freezes into the constants at its entered amount.
-  const unknowns = [
-    ...moving.map((carried) => ({ rowIndex: carried.rowIndex, coefficients: carried.coefficients })),
-    ...pinned.map((add) => ({ rowIndex: add.rowIndex, coefficients: add.coefficients })),
-  ];
+  // Unknowns: the carriers, then one amount per pinned addition. Each keeps its
+  // per-part axis values, so the target rows below never re-derive a profile.
+  const unknowns = [...moving, ...pinned.map((add) => add.carried)];
   const unknownIndex = new Map(unknowns.map((unknown, index) => [unknown.rowIndex, index]));
 
   let constFlux = 0;
-  let constSilica = 0;
-  let constAlumina = 0;
+  let constFirstOf = 0;
+  let constFirstPer = 0;
+  let constSecondOf = 0;
+  let constSecondPer = 0;
   for (const carried of display) {
     if (unknownIndex.has(carried.rowIndex)) continue;
     const amount = rows[carried.rowIndex]?.amount ?? 0;
     constFlux += amount * carried.coefficients.flux;
-    constSilica += amount * carried.coefficients.silica;
-    constAlumina += amount * carried.coefficients.alumina;
+    constFirstOf += amount * carried.firstOf;
+    constFirstPer += amount * carried.firstPer;
+    constSecondOf += amount * carried.secondOf;
+    constSecondPer += amount * carried.secondPer;
   }
 
   const { x: X, y: Y } = target;
-  // Target rows: coefficient minus (target · flux), so each reads
-  // Σ amount·(coefficient − target·flux) = target·F − constants.
+  // Target rows: coordinate minus (target · basis), so each reads
+  // Σ amount·(coordinate − target·basis) = target·basis₀ − constants.
   const equations: SolveEquation[] = [
     {
-      coefficients: unknowns.map((u) => u.coefficients.silica - X * u.coefficients.flux),
-      rhs: X * constFlux - constSilica,
+      coefficients: unknowns.map((u) => u.firstOf - X * u.firstPer),
+      rhs: X * constFirstPer - constFirstOf,
     },
     {
-      coefficients: unknowns.map((u) => u.coefficients.alumina - Y * u.coefficients.flux),
-      rhs: Y * constFlux - constAlumina,
+      coefficients: unknowns.map((u) => u.secondOf - Y * u.secondPer),
+      rhs: Y * constSecondPer - constSecondOf,
     },
   ];
   // One row per pinned addition: its dominant oxide's moles per part less its
@@ -569,7 +658,7 @@ export function solveForStullTarget(
   for (const add of pinned) {
     equations.push({
       coefficients: unknowns.map((u) => {
-        const own = u.rowIndex === add.rowIndex ? add.molesPerPart : 0;
+        const own = u.rowIndex === add.carried.rowIndex ? add.molesPerPart : 0;
         return own - add.unityValue * u.coefficients.flux;
       }),
       rhs: add.unityValue * constFlux,
@@ -748,4 +837,66 @@ export function solveForStullTarget(
     r2oRoDrift: startRo > 0 && baseRatio > 0 ? solvedRatio / baseRatio : 1,
     emptied,
   };
+}
+
+/** The Stull map's drag: the point is `(SiO₂, Al₂O₃)` over the typed flux. */
+export function solveForStullTarget(
+  rows: RecipeRow[],
+  materials: Map<string, Material>,
+  target: { x: number; y: number },
+  options: SolveOptions = {},
+): SolveResult {
+  return solveForTarget(rows, materials, { ...STULL_AXES, x: target.x, y: target.y }, options);
+}
+
+/**
+ * The boron map's drag: unity B₂O₃ against the calculated firing temperature.
+ * The y axis is the meltability ratio K, and K's own per-part weights depend on
+ * the branch the recipe sits on — the Al₂O₃ step at 3 mass % and the oxides
+ * with no meltability data. So the branch is frozen where the drag started, the
+ * fit runs `leastChange` (at most two materials move), and the written recipe is
+ * measured again: a fit that landed on the other side of the step, or under a
+ * different skip set, is refused rather than left reading the wrong cone.
+ */
+export function solveForBoronTarget(
+  rows: RecipeRow[],
+  materials: Map<string, Material>,
+  target: { b2o3: number; celsius: number },
+  options: SolveOptions = {},
+): SolveResult {
+  const includeAdditions = options.includeAdditions ?? false;
+  const k = kForCelsius(target.celsius);
+  if (k === null) return { ok: false, reason: 'temperature-drift' };
+  const role = aluminaRole(batchMassPercent(chemistryRows(rows, includeAdditions), materials));
+
+  const solved = solveForTarget(
+    rows,
+    materials,
+    {
+      first: {
+        of: (chemistry) => oxideMolesPerPart(chemistry.profile, 'B2O3'),
+        per: (chemistry) => chemistry.coefficients.flux,
+        empty: 'no-flux',
+      },
+      second: meltabilityAxis(role),
+      x: target.b2o3,
+      y: k,
+    },
+    { ...options, leastChange: true },
+  );
+  if (!solved.ok) return solved;
+
+  // Measure what was written, not what was fitted: the write-back rounds the
+  // amounts to cents, and the temperature map is piecewise and branchy.
+  const written = chemistryRows(solved.rows, includeAdditions);
+  const melt = meltabilityK(batchMassPercent(written, materials), OXIDE_BY_FORMULA);
+  const celsius = firingTemperatureK(melt.k, melt.approximate).celsius;
+  if (celsius === null || Math.abs(celsius - target.celsius) > TEMPERATURE_TOLERANCE) {
+    return { ok: false, reason: 'temperature-drift' };
+  }
+  const umf = unityFormula(batchMoles(written, materials, OXIDE_BY_FORMULA), OXIDE_BY_FORMULA);
+  if (Math.abs((umf.values.get('B2O3') ?? 0) - target.b2o3) > 1e-3) {
+    return { ok: false, reason: 'temperature-drift' };
+  }
+  return solved;
 }
