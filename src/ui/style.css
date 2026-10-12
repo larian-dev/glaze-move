@@ -65,6 +65,15 @@ h3 {
   border-bottom-color: var(--accent);
 }
 
+/* The Pricing entry is a button, not a route: it borrows the link's look. */
+.app-link--button {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
 .app-main {
   padding: 16px 20px 40px;
 }
