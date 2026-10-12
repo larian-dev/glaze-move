@@ -17,6 +17,7 @@ export {
   type UnityGroup,
 } from './umf';
 export {
+  dominantOxideMolesPerPart,
   moleCoefficients,
   oxideMolesPerPart,
   type MaterialChemistry,

@@ -17,6 +17,12 @@ export type ResultsValues = {
   firing: FiringTemperature;
   costPerKg: number;
   loi: number;
+  /** Oxide formulas the enabled clamps are holding: a drag leaves them where
+   *  they are. The panel tints these entries, so the switch verdicts read on
+   *  the formula itself. */
+  clamped: Readonly<Record<string, true>>;
+  /** True while the R₂O:RO balance is clamped — that ratio tile is held too. */
+  clampedFluxRatio: boolean;
 };
 
 export type ResultsOptions = {
@@ -82,8 +88,10 @@ function braceCell(column: number, mirrored: boolean): HTMLElement {
   return cell;
 }
 
-function ratioTile(label: string, value: string): HTMLElement {
-  return el('div', { class: 'umf-ratio-tile' }, [
+function ratioTile(label: string, value: string, clamped = false): HTMLElement {
+  return el('div', {
+    class: clamped ? 'umf-ratio-tile umf-ratio-tile--clamped' : 'umf-ratio-tile',
+  }, [
     el('span', { class: 'umf-ratio-label' }, subscripted(label)),
     el('span', { class: 'umf-ratio-value', text: value }),
   ]);
@@ -135,10 +143,13 @@ export function createResults(container: HTMLElement, options: ResultsOptions): 
     }
   }
 
-  function entryNode(formula: string, value: number, counted: boolean): HTMLElement {
-    return el('div', {
-      class: counted ? 'umf-entry' : 'umf-entry umf-entry--uncounted',
-    }, [
+  function entryNode(formula: string, value: number, counted: boolean, clamped: boolean): HTMLElement {
+    const classes = ['umf-entry'];
+    if (!counted) classes.push('umf-entry--uncounted');
+    // The tint is the panel's only row highlight: green while a clamp holds the
+    // entry, nothing when the value is free to move.
+    if (clamped) classes.push('umf-entry--clamped');
+    return el('div', { class: classes.join(' ') }, [
       el('span', { class: 'umf-value', text: fmtTrim(value, 3) }),
       el('span', { class: 'umf-oxide' }, subscripted(formula)),
     ]);
@@ -183,7 +194,7 @@ export function createResults(container: HTMLElement, options: ResultsOptions): 
         if (value === undefined) continue;
         // Below-threshold "other" oxides are listed but excluded from the unity sums.
         const counted = !umf.groups.Other.includes(formula) || (umf.isFlux.get(formula) ?? true);
-        body.append(entryNode(formula, value, counted));
+        body.append(entryNode(formula, value, counted, values?.clamped[formula] === true));
       }
       table.append(head, body);
       column += 1;
@@ -204,7 +215,13 @@ export function createResults(container: HTMLElement, options: ResultsOptions): 
     const tiles = el('div', { class: 'umf-ratios' });
     const split = fluxSplit(umf, source);
     if (split) {
-      tiles.append(ratioTile('R2O:RO', `${fmtTrim(split[0], 2)} : ${fmtTrim(split[1], 2)}`));
+      tiles.append(
+        ratioTile(
+          'R2O:RO',
+          `${fmtTrim(split[0], 2)} : ${fmtTrim(split[1], 2)}`,
+          values?.clampedFluxRatio === true,
+        ),
+      );
     }
     const ratio = values?.siAlRatio;
     if (ratio !== null && ratio !== undefined) {

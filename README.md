@@ -25,7 +25,8 @@ Inspired by and built on the published work of [calc.portalkeramiki.ru](https://
   boron map's vertical axis is cone-stepped (Orton cones Δ06–Δ10), not linear °C.
 - **Drag clamps** — *Clamp additions* keeps every addition's chemistry pinned while you
   drag; *Clamp flux ratio* refuses drags that would shift the R₂O:RO balance; *Clamp
-  boron* holds the glaze's B₂O₃ while the Stull point moves.
+  boron* holds the glaze's B₂O₃ while the Stull point moves. The UMF panel tints every
+  value an enabled clamp is holding; entries without a clamp stay plain.
 - **History & transfer** — session checkpoints with one-click restore, JSON export, and
   share links that encode the recipe right in the URL — importing accepts a pasted link
   or code.
@@ -87,7 +88,8 @@ line. Materials you add yourself are stored in your browser only.
 - **Фиксаторы при перетаскивании** — «Фиксировать добавки» удерживает химию каждой
   добавки, пока вы тянете точку; «Фиксировать соотношение флюсов» отвергает переносы,
   сдвигающие баланс R₂O:RO; «Фиксировать бор» удерживает B₂O₃ глазури, пока точка
-  Стулла движется.
+  Стулла движется. Значения, удерживаемые включёнными фиксаторами, подсвечены зелёным
+  в таблице формулы; без фиксатора строка остаётся без подсветки.
 - **История и обмен данными** — контрольные точки сессии с восстановлением в один
   клик, экспорт JSON и ссылки, кодирующие рецепт прямо в URL; импорт принимает
   вставленную ссылку или код.

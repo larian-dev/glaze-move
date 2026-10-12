@@ -36,7 +36,10 @@ no backend, no account, no network traffic.
   - *Clamp boron* — a drag holds the batch's unity B₂O₃ where it is, so the boron map's
     marker stays put while the Stull point moves. The hold costs the fit one mover; a
     recipe that cannot afford one is refused, and a batch without B₂O₃ clamps nothing.
-  - Cost and LOI ignore all switches; flipping a switch writes no history.
+  - Cost and LOI ignore all switches; flipping a switch writes no history. The results
+    panel tints the values the enabled clamps are holding — the additions' dominant
+    oxides, B₂O₃, and the R₂O:RO tile — so the formula itself shows what a drag will
+    leave alone; entries no clamp holds stay plain.
 - **Stull map** — the interactive map: drag the point (mouse/touch, or arrow keys) to a
   SiO₂/Al₂O₃ target; the solver refits the free carriers, holds each clamped addition's
   dominant oxide, and writes the batch back with the base at exactly 100.00. The dashed

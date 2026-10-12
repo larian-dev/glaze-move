@@ -19,6 +19,7 @@ import {
   chemistryRows,
   costPerKg,
   cte,
+  dominantOxideMolesPerPart,
   feasibleAreas,
   firingTemperatureK,
   loiPercent,
@@ -158,6 +159,32 @@ function stullFlux(rows: RecipeRow[], materials: MaterialIndex): number {
 }
 
 /**
+ * The unity values the enabled clamps are holding for the displayed chemistry —
+ * the oxide formulas the results panel tints. The additions clamp pins each
+ * addition's dominant oxide, and it only bites while the additions are in the
+ * UMF; the boron clamp holds the displayed B₂O₃ and drops out of a batch
+ * without it. The R₂O:RO clamp is the third one and is no entry: the panel
+ * tints its ratio tile from the switch instead.
+ */
+function clampedOxides(
+  state: FormState,
+  materials: MaterialIndex,
+  moles: Map<string, number>,
+): Record<string, true> {
+  const clamped: Record<string, true> = {};
+  if (state.includeAdditions && state.clampAdditions) {
+    for (const row of state.rows) {
+      if (row.kind !== 'additional') continue;
+      const material = materials.get(row.materialId);
+      const dominant = material ? dominantOxideMolesPerPart(material) : null;
+      if (dominant) clamped[dominant.oxide] = true;
+    }
+  }
+  if (state.clampBoron && (moles.get('B2O3') ?? 0) > 0) clamped.B2O3 = true;
+  return clamped;
+}
+
+/**
  * One pass from rows + materials to everything the page shows. The triaxial point
  * uses the whole batch; the Stull point, hull and drag solve follow the UMF
  * switch and each addition's own drag-solve switch — the base alone, or the
@@ -191,6 +218,8 @@ function compute(state: FormState, materials: MaterialIndex, zoom: Domain | null
     firing: firingTemperatureK(meltability.k, meltability.approximate),
     costPerKg: costPerKg(state.rows, materials),
     loi: loiPercent(state.rows, materials),
+    clamped: clampedOxides(state, materials, moles),
+    clampedFluxRatio: state.clampFluxRatio,
   };
 
   const chartMoles = batchMoles(chartRows, materials, OXIDE_BY_FORMULA);
