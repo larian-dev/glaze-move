@@ -1,4 +1,4 @@
-export { effectiveLoi, normalizedProfile, renormalizeRecipe, to100 } from './normalize';
+export { effectiveLoi, publishedProfile, renormalizeRecipe, to100 } from './normalize';
 export {
   batchMassPercent,
   batchMoles,

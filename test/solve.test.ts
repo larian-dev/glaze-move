@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { OXIDE_BY_FORMULA, SYSTEM_MATERIALS, materialIndex } from '../src/data/catalog';
 import { moleCoefficients } from '../src/core/geometry';
 import { feasibleAreas } from '../src/core/hull';
-import { normalizedProfile } from '../src/core/normalize';
+import { publishedProfile } from '../src/core/normalize';
 import { solveForStullTarget } from '../src/core/solve';
 import type { Material, MaterialIndex, RecipeRow } from '../src/types';
 
@@ -50,7 +50,7 @@ function unityOf(
     if (row.kind !== 'main' && !includeAdditions) continue;
     const material = index.get(row.materialId);
     if (!material) continue;
-    for (const [oxide, mass] of normalizedProfile(material)) {
+    for (const [oxide, mass] of publishedProfile(material)) {
       const entry = OXIDE_BY_FORMULA.get(oxide);
       if (!entry || entry.mw <= 0) continue;
       const moles = (row.amount * mass) / 100 / entry.mw;
@@ -82,7 +82,7 @@ function unityValueOf(
     if (!material) continue;
     flux += row.amount * moleCoefficients(material).flux;
     if (only && !only(row)) continue;
-    const mass = normalizedProfile(material).get(oxide) ?? 0;
+    const mass = publishedProfile(material).get(oxide) ?? 0;
     moles += (row.amount * mass) / 100 / entry.mw;
   }
   return flux > 0 ? moles / flux : Number.NaN;
@@ -214,7 +214,7 @@ describe('solveForStullTarget with additions in the solve', () => {
       ...RECIPE,
       { materialId: QUARTZ.id, amount: 50, kind: 'additional' },
     ];
-    const target = { x: 5, y: 0.55 };
+    const target = { x: 8, y: 0.7 };
     const result = solveForStullTarget(rows, materials, target, { includeAdditions: true });
     expect(result.ok).toBe(true);
     if (!result.ok) return;

@@ -17,7 +17,10 @@ no backend, no account, no network traffic.
 ## How it works
 
 - **Recipe** — *Main* rows are the glaze base in parts (*to 100%* on demand); *Additional*
-  rows are additions over 100 that never disturb the fitted base.
+  rows are additions over 100 that never disturb the fitted base. Every row carries a drag
+  handle: drag it to reorder the row, or across the sections to move it between Main and
+  Additional; Alt + ↑/↓ makes the same moves from the keyboard. A drag or move is a
+  structural edit — persisted and recomputed, but not checkpointed.
 - **Switches** (*In the UMF* in the Additional header; *Clamp flux ratio*, *Clamp
   additions* and *Clamp boron* in the Stull panel header; all persisted):
   - *In the UMF* — additions join the calculations: unity formula, mole %, Si/Al, CTE,
@@ -68,13 +71,22 @@ SiO₂ / Al₂O₃ target.
 ### Normalize to 100%
 
 ```
-amountᵢ' = amountᵢ · 100 / Σ amount
+amountᵢ' = amountᵢ · 100 / Σ amount        // main rows only
 ```
 
-Used by *to 100%* and to renormalize every material's own oxide profile — non-oxide mass
-(LOI, unlisted oxides) is inert in the oxide math.
+Used by *to 100%*: the base lands on exactly 100 and every addition keeps the value it was
+entered with — additions read as percentages over the base, so scaling them by the same
+factor would rewrite each entered percentage. The base's own ratios survive the rescale;
+when the additions are in the UMF their share of the batch does move, and the whole-batch
+figures (unity formula, mole %, the Stull point) move with it.
 
 ### Batch composition, moles, mole %
+
+Each material's own profile is used exactly as published: `profileᵢ(O)` is the oxide's
+mass % of the raw material as its analysis states it, and the LOI / unlisted remainder
+contributes no oxides — 100 g of a whiting publishing CaO 56.1 brings 56.1 g CaO, not 100.
+Renormalizing a material's list to 100 would inflate every LOI-bearing material and shift
+the whole unity formula.
 
 ```
 wᵢ  = amountᵢ / Σ amount
@@ -82,6 +94,9 @@ m(O) = Σᵢ wᵢ · profileᵢ(O)
 n(O) = m(O) / MW(O)              // unknown oxide or MW ≤ 0: skipped
 x(O) = 100 · n(O) / Σ n
 ```
+
+`m` sums to the batch's oxide share of its own mass — below 100 whenever the materials
+carry LOI. Everything downstream reads it as a ratio, so the scale never matters.
 
 ### Flux membership and the unity formula
 
@@ -212,7 +227,7 @@ No SiO₂ → no estimate; any other oxide without a coefficient contributes 0.
 ### Melatability and firing temperature
 
 ```
-K = Σ (aᵢ · mᵢ) / Σ (bⱼ · mⱼ)        // over mass % of the normalized batch profile
+K = Σ (aᵢ · mᵢ) / Σ (bⱼ · mⱼ)        // over the batch mass % m, published profiles
 ```
 
 Numerator `a`: every oxide except the refractory set and Al₂O₃ (B₂O₃ 1.25, ZnO/BaO 1.0,

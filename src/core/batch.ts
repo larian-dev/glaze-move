@@ -1,5 +1,5 @@
 import type { Material, MaterialIndex, OxideIndex, RecipeRow } from '../types';
-import { normalizedProfile } from './normalize';
+import { publishedProfile } from './normalize';
 
 export type ResolvedRow = { amount: number; material: Material };
 
@@ -29,7 +29,9 @@ function totalAmount(resolved: ResolvedRow[]): number {
   return resolved.reduce((sum, row) => sum + row.amount, 0);
 }
 
-/** m(O) = Σ wᵢ · profileᵢ(O) with wᵢ = amountᵢ / Σ amount over main and additional rows. */
+/** m(O) = Σ wᵢ · profileᵢ(O) with wᵢ = amountᵢ / Σ amount over main and additional rows.
+ *  Profiles are the published analyses, so m sums to the batch's oxide share of its own
+ *  mass — below 100 whenever the materials carry LOI. */
 export function batchMassPercent(
   rows: RecipeRow[],
   materials: MaterialIndex,
@@ -40,7 +42,7 @@ export function batchMassPercent(
   if (total <= 0) return massPercent;
   for (const row of resolved) {
     const weight = row.amount / total;
-    for (const [oxide, mass] of normalizedProfile(row.material)) {
+    for (const [oxide, mass] of publishedProfile(row.material)) {
       massPercent.set(oxide, (massPercent.get(oxide) ?? 0) + weight * mass);
     }
   }

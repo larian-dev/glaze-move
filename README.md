@@ -10,7 +10,9 @@ Inspired by and built on the published work of [calc.portalkeramiki.ru](https://
 ## What you get
 
 - **Recipe editor** — *Main* rows form the glaze base (normalize to 100% on demand);
-  *Additional* rows are bench additions over 100 that never disturb the fitted base.
+  *Additional* rows are bench additions over 100 that never disturb the fitted base. Drag a
+  row's handle to reorder it or move it between the two sections (Alt + ↑/↓ from the
+  keyboard).
 - **Unity formula & summary** — the Seger formula grouped per oxide, mole %, the
   SiO₂:Al₂O₃ ratio, thermal expansion (CTE), an estimated firing temperature, cost per kg
   and loss on ignition.
@@ -69,6 +71,7 @@ line. Materials you add yourself are stored in your browser only.
 
 - **Редактор рецепта** — строки «Основные» образуют базу глазури (к 100% по запросу);
   строки «Дополнительные» — добавки сверх 100, которые не трогают подобранную базу.
+  Строку можно перетащить за ручку, меняя порядок или раздел (Alt + ↑/↓ — с клавиатуры).
 - **Единственная формула и сводка** — формула Зегера по группам оксидов, моль. %,
   отношение SiO₂:Al₂O₃, термическое расширение (КТР), расчётная температура обжига (по Аппену),
   цена за кг и потери при прокаливании (ППП).

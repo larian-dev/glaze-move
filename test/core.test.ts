@@ -14,7 +14,7 @@ import {
   moleCoefficients,
   molePercent,
   moles,
-  normalizedProfile,
+  publishedProfile,
   renormalizeRecipe,
   oxideMolesPerPart,
   siAlRatio,
@@ -72,11 +72,11 @@ describe('normalize', () => {
     expect(to100([0, 0])).toEqual([0, 0]);
   });
 
-  it('drops non-oxide mass from the profile', () => {
+  it('keeps the analysis as published and never renormalizes the LOI away', () => {
     const whiting = SYSTEM_MATERIALS.find((m) => m.id === '3');
-    const profile = normalizedProfile(whiting!);
+    const profile = publishedProfile(whiting!);
     expect(profile.size).toBe(1);
-    expect(profile.get('CaO')).toBe(100);
+    expect(profile.get('CaO')).toBe(56.1);
   });
 
   it('sums duplicate component entries for one oxide before weighting', () => {
@@ -95,7 +95,7 @@ describe('normalize', () => {
         { oxide: 'Na2O', amount: 40 },
       ],
     };
-    expect(normalizedProfile(split).get('SiO2')).toBe(60);
+    expect(publishedProfile(split).get('SiO2')).toBe(60);
 
     const index = materialIndex([split, merged]);
     const expansion = (material: Material): number | null =>
@@ -106,12 +106,15 @@ describe('normalize', () => {
 });
 
 describe('batch', () => {
-  it('skips unknown material ids and keeps the profile summing to 100', () => {
+  it('skips unknown material ids and weights the published profiles', () => {
     const rows = [row('1', 40), row('nope', 60), row('2', 20)];
     const massPercent = batchMassPercent(rows, MATERIALS);
+    // Nepheline's oxides sum to 97.92, quartz's to 99.963. The unknown row is
+    // dropped from both sides, so the total is the weighted published-share
+    // average — not 100.
     const total = [...massPercent.values()].reduce((sum, v) => sum + v, 0);
-    expect(total).toBeCloseTo(100, 10);
-    expect(massPercent.get('SiO2')! > 0).toBe(true);
+    expect(total).toBeCloseTo((40 * 97.92 + 20 * 99.963) / 60, 10);
+    expect(massPercent.get('SiO2')).toBeCloseTo((40 * 62.93 + 20 * 99.7) / 60, 10);
   });
 
   it('skips oxides with no catalog entry or no molecular weight', () => {
@@ -173,45 +176,38 @@ describe('renormalizeRecipe', () => {
     { materialId: '23', amount: 11.42, kind: 'additional' },
   ];
 
-  it('brings the main total to exactly 100 and carries the additions along', () => {
+  it('brings the main total to exactly 100 and leaves the additions as entered', () => {
     const scaled = renormalizeRecipe(shortRows)!;
     expect(
       scaled.filter((r) => r.kind === 'main').reduce((sum, r) => sum + r.amount, 0),
     ).toBeCloseTo(100, 10);
-    expect(scaled[3]?.amount).toBeCloseTo(11.42 * (100 / 60), 10);
+    // An addition reads as a percentage over the base: the entered number is
+    // the one the button leaves alone.
+    expect(scaled[3]?.amount).toBe(11.42);
     expect(scaled.map((r) => r.kind)).toEqual(shortRows.map((r) => r.kind));
   });
 
-  it('never moves the unity formula, mole % or the Stull point', () => {
-    const umfOf = (list: RecipeRow[]) =>
-      unityFormula(batchMoles(list, MATERIALS, OXIDE_BY_FORMULA), OXIDE_BY_FORMULA);
-    const before = umfOf(shortRows);
-    const after = umfOf(renormalizeRecipe(shortRows)!);
-    expect([...after.values]).toEqual([...before.values]);
-    expect(after.subtotals).toEqual(before.subtotals);
-    expect(renormalizeRecipe(shortRows)).not.toBeNull();
-    // The Stull point is whole-batch: it must not move either. Its flux basis is
-    // batch-share weighted, exactly like the page's own stullFlux.
-    const flux = (list: RecipeRow[]): number => {
-      const total = list.reduce((sum, r) => sum + r.amount, 0);
-      if (total <= 0) return 0;
-      return (
-        (list.reduce((sum, r) => {
-          const material = MATERIALS.get(r.materialId);
-          return material ? sum + r.amount * moleCoefficients(material).flux : sum;
-        }, 0) *
-          100) /
-        total
+  it('never moves the base chemistry, though the whole-batch figures do move', () => {
+    const scaled = renormalizeRecipe(shortRows)!;
+    const umfOf = (list: RecipeRow[], additions: boolean) =>
+      unityFormula(
+        batchMoles(chemistryRows(list, additions), MATERIALS, OXIDE_BY_FORMULA),
+        OXIDE_BY_FORMULA,
       );
-    };
-    const pointOf = (list: RecipeRow[]) =>
-      stullPoint(batchMoles(list, MATERIALS, OXIDE_BY_FORMULA), flux(list)) ?? null;
-    const scaledPoint = pointOf(renormalizeRecipe(shortRows)!);
-    const enteredPoint = pointOf(shortRows);
-    expect(scaledPoint).not.toBeNull();
-    expect(enteredPoint).not.toBeNull();
-    expect(scaledPoint?.x).toBeCloseTo(enteredPoint!.x, 10);
-    expect(scaledPoint?.y).toBeCloseTo(enteredPoint!.y, 10);
+
+    const baseBefore = umfOf(shortRows, false);
+    const baseAfter = umfOf(scaled, false);
+    for (const [oxide, value] of baseBefore.values) {
+      expect(baseAfter.values.get(oxide)).toBeCloseTo(value, 12);
+    }
+    expect(baseAfter.subtotals.R2O).toBeCloseTo(baseBefore.subtotals.R2O, 12);
+    expect(baseAfter.subtotals.RO).toBeCloseTo(baseBefore.subtotals.RO, 12);
+
+    // With the additions in the chemistry the batch does change: 11.42 parts
+    // now sit against a 100-part base instead of a 60-part one.
+    const wholeBefore = umfOf(shortRows, true);
+    const wholeAfter = umfOf(scaled, true);
+    expect(wholeAfter.values.get('CaO')).not.toBeCloseTo(wholeBefore.values.get('CaO')!, 3);
   });
 
   it('returns null when the base sums to nothing', () => {

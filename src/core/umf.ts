@@ -1,6 +1,6 @@
 import type { Oxide, OxideIndex } from '../types';
-
 export const OTHER_FLUX_THRESHOLD = 0.1;
+
 
 export type UnityGroup = 'R2O' | 'RO' | 'R2O3' | 'RO2' | 'B2O3' | 'Other';
 

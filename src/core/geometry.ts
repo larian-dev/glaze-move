@@ -1,6 +1,6 @@
 import { OXIDE_BY_FORMULA } from '../data/catalog';
 import type { Material } from '../types';
-import { normalizedProfile } from './normalize';
+import { publishedProfile } from './normalize';
 
 /** Moles of one oxide per amount-part: profile/100/MW, 0 when the oxide is unknown. */
 export function oxideMolesPerPart(profile: Map<string, number>, oxide: string): number {
@@ -29,7 +29,7 @@ function dominantOxideOf(profile: Map<string, number>): { oxide: string; moles: 
  *  `null` when the profile holds nothing an equation could hold constant. This
  *  is the quantity a clamped addition keeps through a drag — `unityValue`. */
 export function dominantOxideMolesPerPart(material: Material): { oxide: string; moles: number } | null {
-  return dominantOxideOf(normalizedProfile(material));
+  return dominantOxideOf(publishedProfile(material));
 }
 
 /** SiO2 / Al2O3 / flux moles contributed by one amount-part of a material.
@@ -64,7 +64,7 @@ function coefficientsOf(profile: Map<string, number>): MoleCoefficients {
 }
 
 export function moleCoefficients(material: Material): MoleCoefficients {
-  return coefficientsOf(normalizedProfile(material));
+  return coefficientsOf(publishedProfile(material));
 }
 
 /** Everything the solve reads off one material, derived once: the normalized
@@ -78,6 +78,6 @@ export type MaterialChemistry = {
 };
 
 export function materialChemistry(material: Material): MaterialChemistry {
-  const profile = normalizedProfile(material);
+  const profile = publishedProfile(material);
   return { profile, coefficients: coefficientsOf(profile), dominant: dominantOxideOf(profile) };
 }

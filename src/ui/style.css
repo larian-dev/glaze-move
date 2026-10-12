@@ -281,11 +281,12 @@ h3 {
 }
 
 /* One grid for the caption row and every row of both sections, so the Main and
-   Additional columns line up. */
+   Additional columns line up. The first cell is the drag handle, the last the
+   remove button. */
 .recipe-list-head,
 .recipe-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 110px 32px;
+  grid-template-columns: 22px minmax(0, 1fr) 110px 32px;
   gap: 6px;
   align-items: center;
 }
@@ -334,6 +335,48 @@ h3 {
   color: var(--ink);
   min-width: 0;
   width: 100%;
+}
+
+/* Drag handle: pointer-drag reorders the row, or moves it between sections. */
+.recipe-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: grab;
+  /* A drag from the grip must not scroll the page on touch. */
+  touch-action: none;
+}
+
+.recipe-handle:hover,
+.recipe-handle:focus-visible {
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+/* While a drag is live: no text selection under the pointer, and the grab
+   cursor follows the row. */
+.recipe-dragging {
+  user-select: none;
+}
+
+.recipe-dragging .recipe-handle {
+  cursor: grabbing;
+}
+
+/* The carried row: lifted out of the list so the gap marks where it lands. */
+.recipe-row--dragging {
+  position: relative;
+  z-index: 1;
+  background: var(--panel);
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgb(27 29 33 / 0.16);
 }
 
 .recipe-remove {
@@ -691,7 +734,7 @@ h3 {
 
   .recipe-list-head,
   .recipe-row {
-    grid-template-columns: minmax(0, 1fr) 88px 30px;
+    grid-template-columns: 22px minmax(0, 1fr) 88px 30px;
   }
 }
 
