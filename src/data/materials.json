@@ -1,0 +1,920 @@
+{
+    "materials": [
+        {
+            "id":"1",
+            "name": "Нефелин VR-13",
+            "density": 0.9,
+            "region": 3,
+            "price": 150,
+            "loi": 1,
+            "type": 0,
+            "components": [
+                {"oxide": "SiO2", "amount": 62.93},
+                {"oxide": "Al2O3", "amount": 20.33},
+                {"oxide": "Na2O", "amount": 7.09},
+                {"oxide": "K2O", "amount": 7.57}
+            ],
+            "local": false
+        },
+        {
+            "id":"2",
+            "name": "Кварц S-4617",
+            "density": 0,
+            "region": 0,
+            "price": 90,
+            "loi": 0,
+            "type": 4,
+            "components": [
+                {"oxide": "SiO2", "amount": 99.7},
+                {"oxide": "Fe2O3", "amount": 0.025},
+                {"oxide": "Al2O3", "amount": 0.21},
+                {"oxide": "TiO2", "amount": 0.013},
+                {"oxide": "K2O", "amount": 0.01},
+                {"oxide": "CaO", "amount": 0.005}
+            ],
+            "local": false
+        },
+        {
+            "id":"3",
+            "name": "Мел S-4213",
+            "density": 0,
+            "region": 3,
+            "price": 80,
+            "loi": 0,
+            "type": 4,
+            "components": [
+                {"oxide": "CaO", "amount": 56.1}
+            ],
+            "local": false
+        },
+        {
+            "id":"4",
+            "name": "Каолин КЖФ-1",
+            "density": 0,
+            "region": 3,
+            "price": 45,
+            "loi": 0,
+            "type": 3,
+            "components": [
+                {"oxide": "SiO2", "amount": 55.15},
+                {"oxide": "Al2O3", "amount": 42.24},
+                {"oxide": "K2O", "amount": 1.17},
+                {"oxide": "CaO", "amount": 0.18},
+                {"oxide": "Na2O", "amount": 0.08},
+                {"oxide": "Fe2O3", "amount": 0.7},
+                {"oxide": "TiO2", "amount": 0.47}
+            ],
+            "local": false
+        },
+        {
+            "id":"5",
+            "name": "Улексит S-4206",
+            "density": 0,
+            "region": 3,
+            "price": 150,
+            "loi": 0,
+            "type": 4,
+            "components": [
+                {"oxide": "B2O3", "amount": 57.36},
+                {"oxide": "SiO2", "amount": 5.33},
+                {"oxide": "CaO", "amount": 27.05},
+                {"oxide": "Na2O", "amount": 5.79},
+                {"oxide": "MgO", "amount": 2.88},
+                {"oxide": "SrO", "amount": 1.43},
+                {"oxide": "Al2O3", "amount": 0.09},
+                {"oxide": "Fe2O3", "amount": 0.05}
+            ],
+            "local": false
+        },
+        {
+            "id":"6",
+            "name": "Трикальций фосфат S-5656",
+            "density": 0,
+            "region": 3,
+            "price": 150,
+            "loi": 7.8,
+            "type": 4,
+            "components": [
+                {"oxide": "CaO", "amount": 38.5},
+                {"oxide": "P2O5", "amount": 61.5}
+            ],
+            "local": false
+        },
+		{
+  "id": "7",
+  "name": "Волластонит W-51 (Бризколор)",
+  "density": 0,
+  "region": "Russia",
+  "price": 182,
+  "loi": 2.79,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 51.25
+    },
+    {
+      "oxide": "CaO",
+      "amount": 42.35
+    },
+    {
+      "oxide": "TiO2",
+      "amount": 0.62
+    },
+    {
+      "oxide": "MgO",
+      "amount": 2.15
+    },
+    {
+      "oxide": "Na2O",
+      "amount": 0.16
+    },
+    {
+      "oxide": "K2O",
+      "amount": 0.04
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 0.13
+    }
+  ],
+  "local": false
+},
+{
+  "id": "8",
+  "name": "Каолин КР-1 (Бризколор)",
+  "density": 0,
+  "region": "russia",
+  "price": 84,
+  "loi": 14,
+  "type": "clay",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 46.1
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 36
+    },
+    {
+      "oxide": "Na2O",
+      "amount": 0.2
+    },
+    {
+      "oxide": "K2O",
+      "amount": 1
+    },
+    {
+      "oxide": "CaO",
+      "amount": 0.4
+    },
+    {
+      "oxide": "MgO",
+      "amount": 0.3
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 1
+    }
+  ],
+  "local": false
+},
+{
+  "id": "9",
+  "name": "Метакаолин (S-4087)",
+  "density": 0,
+  "region": "russia",
+  "price": 0,
+  "loi": 1,
+  "type": "clay",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 53
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 42
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 0.1
+    }
+  ],
+  "local": false
+},
+{
+  "id": "10",
+  "name": "Микротальк А-20 (S-4209)",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 0,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 65.26
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 0.53
+    },
+    {
+      "oxide": "MgO",
+      "amount": 33.68
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 0.53
+    }
+  ],
+  "local": false
+},
+{
+  "id": "11",
+  "name": "Нефелин-сиенит А270 N",
+  "density": 0.9,
+  "region": "Russia",
+  "price": 150,
+  "loi": 0.8,
+  "type": "feldspar",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 57.65
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 23.55
+    },
+    {
+      "oxide": "TiO2",
+      "amount": 0.08
+    },
+    {
+      "oxide": "Na2O",
+      "amount": 8.9
+    },
+    {
+      "oxide": "K2O",
+      "amount": 7.55
+    },
+    {
+      "oxide": "CaO",
+      "amount": 1.38
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 0.08
+    }
+  ],
+  "local": false
+},
+{
+  "id": "12",
+  "name": "Полевой шпат FN64",
+  "density": 0.9,
+  "region": "Russia",
+  "price": 150,
+  "loi": 0.4,
+  "type": "feldspar",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 67.7
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 17.7
+    },
+    {
+      "oxide": "TiO2",
+      "amount": 0.04
+    },
+    {
+      "oxide": "Na2O",
+      "amount": 6.9
+    },
+    {
+      "oxide": "K2O",
+      "amount": 4.3
+    },
+    {
+      "oxide": "CaO",
+      "amount": 0.8
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 0.08
+    }
+  ],
+  "local": false
+},
+{
+  "id": "13",
+  "name": "Силикат циркония (Бризколор)",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 1.2,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 32.65
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 0.74
+    },
+    {
+      "oxide": "TiO2",
+      "amount": 0.03
+    },
+    {
+      "oxide": "ZrO2",
+      "amount": 65.28
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 0.1
+    }
+  ],
+  "local": false
+},
+{
+  "id": "14",
+  "name": "Тальк Tital 4591",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 0,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 56.13
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 5.83
+    },
+    {
+      "oxide": "TiO2",
+      "amount": 1.3
+    },
+    {
+      "oxide": "Na2O",
+      "amount": 0.05
+    },
+    {
+      "oxide": "K2O",
+      "amount": 0.11
+    },
+    {
+      "oxide": "CaO",
+      "amount": 0.97
+    },
+    {
+      "oxide": "MgO",
+      "amount": 33.24
+    },
+    {
+      "oxide": "ZrO2",
+      "amount": 65.28
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 2.37
+    }
+  ],
+  "local": false
+},
+{
+  "id": "15",
+  "name": "Титан SR-2377",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 7,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "TiO2",
+      "amount": 93
+    }
+  ],
+  "local": false
+},
+{
+  "id": "16",
+  "name": "Гжельская масса CG/T",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 8.84,
+  "type": "clay",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 55.3
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 20.95
+    },
+    {
+      "oxide": "TiO2",
+      "amount": 1.31
+    },
+    {
+      "oxide": "Na2O",
+      "amount": 0.58
+    },
+    {
+      "oxide": "K2O",
+      "amount": 3
+    },
+    {
+      "oxide": "CaO",
+      "amount": 1.4
+    },
+    {
+      "oxide": "MgO",
+      "amount": 1.54
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 7.08
+    }
+  ],
+  "local": false
+},
+{
+  "id": "17",
+  "name": "Доломит МИДОЛ",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 48.08,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 0.3
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 0.02
+    },
+    {
+      "oxide": "CaO",
+      "amount": 30.32
+    },
+    {
+      "oxide": "MgO",
+      "amount": 21.23
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 0.05
+    }
+  ],
+  "local": false
+},
+{
+  "id": "18",
+  "name": "Карбид кремния, SiC",
+  "density": 0,
+  "region": "world",
+  "price": 0,
+  "loi": 0,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 149.85
+    }
+  ],
+  "local": false
+},
+{
+  "id": "19",
+  "name": "Карбонат кобальта, CoCO3",
+  "density": 0,
+  "region": "world",
+  "price": 0,
+  "loi": 37,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "CoO",
+      "amount": 63
+    }
+  ],
+  "local": false
+},
+{
+  "id": "20",
+  "name": "Карбонат лития (литий углекислый)",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 59.26,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "Li2O",
+      "amount": 40.74
+    }
+  ],
+  "local": false
+},
+{
+  "id": "21",
+  "name": "Карбонат магния",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 52.2,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "MgO",
+      "amount": 47.8
+    }
+  ],
+  "local": false
+},
+{
+  "id": "22",
+  "name": "Карбонат марганца",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 38.38,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "MnO",
+      "amount": 61.62
+    }
+  ],
+  "local": false
+},
+{
+  "id": "23",
+  "name": "Карбонат меди, CuCO3",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 35.62,
+  "type": "colorant",
+  "components": [
+    {
+      "oxide": "CuO",
+      "amount": 64.38
+    }
+  ],
+  "local": false
+},
+{
+  "id": "24",
+  "name": "Карбонат Стронция SrCO3",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 29.8,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "SrO",
+      "amount": 70.2
+    }
+  ],
+  "local": false
+},
+{
+  "id": "25",
+  "name": "Кварцевая мука Кварцверке W12",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 0,
+  "type": "feldspar",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 100
+    }
+  ],
+  "local": false
+},
+{
+  "id": "26",
+  "name": "Мел, CaCO3",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 43.9,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "CaO",
+      "amount": 56.1
+    }
+  ],
+  "local": false
+},
+{
+  "id": "27",
+  "name": "Фритта Ferro 3134",
+  "density": 0,
+  "region": "US",
+  "price": 0,
+  "loi": 0,
+  "type": "frit",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 46.9
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 1.21
+    },
+    {
+      "oxide": "B2O3",
+      "amount": 20.25
+    },
+    {
+      "oxide": "Na2O",
+      "amount": 10.12
+    },
+    {
+      "oxide": "CaO",
+      "amount": 21.52
+    }
+  ],
+  "local": false
+},
+{
+  "id": "28",
+  "name": "Фритта 3124",
+  "density": 0,
+  "region": "US",
+  "price": 0,
+  "loi": 0,
+  "type": "frit",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 55.3
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 9.9
+    },
+    {
+      "oxide": "B2O3",
+      "amount": 13.77
+    },
+    {
+      "oxide": "Na2O",
+      "amount": 6.28
+    },
+    {
+      "oxide": "K2O",
+      "amount": 0.68
+    },
+    {
+      "oxide": "CaO",
+      "amount": 14.07
+    }
+  ],
+  "local": false
+},
+{
+  "id": "29",
+  "name": "Карбонат никеля, NiCO3",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 0,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "NiO",
+      "amount": 62.93
+    }
+  ],
+  "local": false
+},
+{
+  "id": "30",
+  "name": "Кварцевая мука Silverbond 15, Flint",
+  "density": 0,
+  "region": "Russia",
+  "price": 90,
+  "loi": 0,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 99.7
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 0.025
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 0.21
+    },
+    {
+      "oxide": "TiO2",
+      "amount": 0.013
+    },
+    {
+      "oxide": "K2O",
+      "amount": 0.01
+    },
+    {
+      "oxide": "CaO",
+      "amount": 0.005
+    }
+  ],
+  "local": false
+},
+{
+  "id": "31",
+  "name": "Костная зола",
+  "density": 0,
+  "region": "world",
+  "price": 0,
+  "loi": 0,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "CaO",
+      "amount": 55.82
+    },
+    {
+      "oxide": "P2O5",
+      "amount": 42.39
+    }
+  ],
+  "local": false
+},
+{
+  "id": "32",
+  "name": "Оксид никеля зеленый, NiO",
+  "density": 0,
+  "region": "world",
+  "price": 0,
+  "loi": 0,
+  "type": "colorant",
+  "components": [
+    {
+      "oxide": "NiO",
+      "amount": 100
+    }
+  ],
+  "local": false
+},
+{
+  "id": "33",
+  "name": "Оксид цинка, ZnO",
+  "density": 0,
+  "region": "world",
+  "price": 0,
+  "loi": 0,
+  "type": "colorant",
+  "components": [
+    {
+      "oxide": "ZnO",
+      "amount": 100
+    }
+  ],
+  "local": false
+},
+{
+  "id": "34",
+  "name": "Рутил",
+  "density": 0,
+  "region": "world",
+  "price": 0,
+  "loi": 0,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "TiO2",
+      "amount": 68
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 9.9
+    }
+  ],
+  "local": false
+},
+{
+  "id": "35",
+  "name": "Флюс ФЦПС, S-1046",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 0,
+  "type": "frit",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 47.9
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 2.07
+    },
+    {
+      "oxide": "B2O3",
+      "amount": 12.98
+    },
+    {
+      "oxide": "TiO2",
+      "amount": 1.7
+    },
+    {
+      "oxide": "Na2O",
+      "amount": 12.72
+    },
+    {
+      "oxide": "K2O",
+      "amount": 7.82
+    },
+    {
+      "oxide": "BaO",
+      "amount": 1.26
+    },
+    {
+      "oxide": "ZnO",
+      "amount": 13.55
+    }
+  ],
+  "local": false
+},
+{
+  "id": "36",
+  "name": "Фритта 100 (Рускерамика)",
+  "density": 0,
+  "region": "Russia",
+  "price": 0,
+  "loi": 0,
+  "type": "frit",
+  "components": [
+    {
+      "oxide": "SiO2",
+      "amount": 60.5
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 9.5
+    },
+    {
+      "oxide": "B2O3",
+      "amount": 12
+    },
+    {
+      "oxide": "Na2O",
+      "amount": 5
+    },
+    {
+      "oxide": "K2O",
+      "amount": 7
+    },
+    {
+      "oxide": "CaO",
+      "amount": 5
+    }
+  ],
+  "local": false
+},
+{
+  "id": "37",
+  "name": "Оксид железа красный, Fe2O3",
+  "density": 0,
+  "region": "world",
+  "price": 0,
+  "loi": 0,
+  "type": "colorant",
+  "components": [
+    {
+      "oxide": "Fe2O3",
+      "amount": 90
+    }
+  ],
+  "local": false
+}
+    ]
+}

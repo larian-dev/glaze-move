@@ -1,0 +1,879 @@
+:root {
+  --ink: #1b1d21;
+  --muted: #5c626b;
+  --line: #d5d9e0;
+  --panel: #ffffff;
+  --page: #f2f3f5;
+  --accent: #2f6fd0;
+  --danger: #b3261e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.45 system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+h2,
+h3 {
+  margin: 0 0 8px;
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: 18px;
+}
+
+h3 {
+  font-size: 15px;
+}
+
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.app-brand {
+  font-weight: 600;
+}
+
+.app-nav {
+  display: flex;
+  gap: 14px;
+  flex: 1;
+}
+
+.app-link {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 4px 2px;
+  border-bottom: 2px solid transparent;
+}
+
+.app-link--active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.app-main {
+  padding: 16px 20px 40px;
+}
+
+/* Credits: the community projects this calculator leans on. */
+.app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.app-footer a {
+  color: var(--muted);
+}
+
+.app-footer a:hover {
+  color: var(--accent);
+}
+
+/* Recipe and transfer on the left, unity formula and history in a narrow middle
+   column, and the three charts down the right. The chart column is the flexible
+   one: the Stull map is 750px wide and only loses detail once squeezed below it. */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(240px, 320px) minmax(0, 1fr);
+  grid-template-areas: 'recipe results charts';
+  gap: 16px;
+  align-items: start;
+  max-width: 1460px;
+}
+
+.column--recipe { grid-area: recipe; }
+.column--results { grid-area: results; }
+.column--charts { grid-area: charts; }
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.panel-head .panel-title {
+  margin: 0;
+}
+
+.panel-tools {
+  display: flex;
+  gap: 8px;
+}
+
+/* Compact chip row: the triaxial corner picker. */
+.ro-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ro-toggle[hidden] {
+  display: none;
+}
+
+.ro-toggle .button {
+  padding: 2px 9px;
+  font-size: 13px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+.ro-toggle .button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: #e8f0fc;
+  color: var(--accent);
+}
+
+.panel-hint,
+.panel-status {
+  margin: 4px 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.notice {
+  margin: 8px 0 0;
+  min-height: 1.2em;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.chart {
+  overflow: auto;
+}
+
+.chart svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.button,
+.recipe-actions button,
+.recipe-add,
+.history-clear,
+.history-entry {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fbfbfc;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.button:hover,
+.recipe-actions button:hover,
+.recipe-add:hover,
+.history-clear:hover,
+.history-entry:hover {
+  border-color: var(--accent);
+}
+
+.control {
+  font: inherit;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--ink);
+  max-width: 100%;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Paste-a-link-or-code import dialog. */
+.import-dialog {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+  width: min(460px, 90vw);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.import-dialog::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+.import-dialog .dialog-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.import-dialog .import-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--ink);
+  min-height: 96px;
+  resize: vertical;
+}
+
+.import-dialog .dialog-status {
+  margin: 6px 0 0;
+  min-height: 1.2em;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.import-dialog .button-row {
+  margin-top: 10px;
+}
+
+
+.recipe-section + .recipe-section {
+  margin-top: 14px;
+}
+
+.recipe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* One grid for the caption row and every row of both sections, so the Main and
+   Additional columns line up. */
+.recipe-list-head,
+.recipe-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 32px;
+  gap: 6px;
+  align-items: center;
+}
+
+.recipe-list-head {
+  padding: 0 2px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.recipe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recipe-caption {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Rows carry their captions for screen readers only; the visible ones live in
+   the list header above. */
+.recipe-row .recipe-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.recipe-field select,
+.recipe-field input {
+  font: inherit;
+  height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--ink);
+  min-width: 0;
+  width: 100%;
+}
+
+.recipe-remove {
+  height: 32px;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fbfbfc;
+  cursor: pointer;
+}
+
+.recipe-remove:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.recipe-empty {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Section header row: title on the left, controls on the right — to-100/Clear
+   for Main, the additions switch for Additional. */
+.recipe-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.recipe-section-head .recipe-section-title {
+  margin: 0;
+}
+
+/* A pill switch: a track-and-knob graphic; aria-checked drives the knob and
+   the accent. Used by the Additional header, every additional row and the
+   Stull panel's flux-ratio clamp. */
+.recipe-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.recipe-toggle-track {
+  box-sizing: border-box;
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.recipe-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.recipe-toggle:hover .recipe-toggle-track {
+  border-color: var(--accent);
+}
+
+.recipe-toggle[aria-checked='true'] {
+  color: var(--accent);
+}
+
+.recipe-toggle[aria-checked='true'] .recipe-toggle-track {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.recipe-toggle[aria-checked='true'] .recipe-toggle-knob {
+  transform: translateX(14px);
+  background: #ffffff;
+}
+
+.recipe-add {
+  margin-top: 8px;
+}
+
+.recipe-total {
+  margin: 8px 0 0;
+  font-weight: 600;
+}
+
+.recipe-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.recipe-clear {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+
+/* The middle column is narrow by design, so the unity formula and the history
+   next to it are set a step tighter than the panels in the other two columns. */
+.panel--results,
+.panel--history {
+  padding: 12px 12px;
+}
+
+.results-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 0 0 10px;
+}
+
+/* Two-button segmented toggle for unity ⇄ mole %; the active one is the panel's
+   heading too, which is why the panel has no separate title. */
+.unit-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.unit-toggle .button {
+  border: 0;
+  border-radius: 0;
+  background: var(--panel);
+}
+
+.unit-toggle .button + .button {
+  border-left: 1px solid var(--line);
+}
+
+.unit-toggle .button:hover {
+  background: #e8f0fc;
+  border-color: transparent;
+}
+
+.unit-toggle .button[aria-pressed='true'] {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.results-undefined {
+  margin: 0;
+  color: var(--danger);
+}
+
+.umf-panels {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 10px 14px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.umf-panel {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.umf-table {
+  display: grid;
+  column-gap: 4px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.umf-group-head {
+  display: flex;
+  gap: 0.5ch;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.umf-block {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+}
+
+.umf-entry {
+  display: grid;
+  grid-template-columns: var(--umf-value-w, 5ch) max-content;
+  column-gap: 1px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.umf-entry--uncounted {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.umf-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.umf-brace {
+  align-self: stretch;
+  width: 9px;
+  margin: 0 1px;
+  color: var(--muted);
+}
+
+.umf-brace svg {
+  display: block;
+  width: 9px;
+  height: 100%;
+}
+
+/* `margin-top: auto` pins the tiles to the panel's bottom edge, so the R₂O:RO and
+   SiO₂:Al₂O₃ tiles of both tables sit on one line whatever their row counts. */
+.umf-ratios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.umf-ratio-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.umf-ratio-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.umf-ratio-value {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.results-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 8px;
+  margin: 12px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.results-summary-item {
+  margin: 0;
+}
+
+.results-summary-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.results-summary-value {
+  margin: 0;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+
+.history-title {
+  margin-bottom: 6px;
+  font-size: 16px;
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 150px;
+  overflow: auto;
+}
+
+.history-entry {
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.history-entry--active {
+  border-color: var(--accent);
+  background: #e8f0fc;
+}
+
+.history-clear {
+  margin-top: 6px;
+  font-size: 13px;
+  padding: 4px 10px;
+}
+
+.history-empty {
+  margin: 0;
+  color: var(--muted);
+  font-style: italic;
+}
+
+
+@media (max-width: 1180px) {
+  .layout {
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    grid-template-areas:
+      'recipe results'
+      'charts charts';
+  }
+}
+
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'recipe'
+      'results'
+      'charts';
+  }
+}
+
+@media (max-width: 520px) {
+  .app-header {
+    flex-wrap: wrap;
+  }
+
+  .recipe-list-head,
+  .recipe-row {
+    grid-template-columns: minmax(0, 1fr) 88px 30px;
+  }
+}
+
+
+.materials-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.materials-status {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.materials-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.materials-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow: auto;
+  /* The same frame the oxide grid's fieldset wears. */
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px;
+}
+
+.materials-item-row {
+  display: flex;
+  gap: 4px;
+}
+
+.materials-item {
+  font: inherit;
+  text-align: left;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fbfbfc;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+
+.materials-item--active {
+  border-color: var(--accent);
+  background: #e8f0fc;
+}
+
+.materials-item-duplicate,
+.materials-item-delete {
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fbfbfc;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.materials-item-duplicate:hover,
+.materials-item-delete:hover {
+  border-color: var(--accent);
+}
+
+.materials-item-delete {
+  min-width: 26px;
+  padding: 5px 6px;
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+.materials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.materials-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.materials-caption {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.materials-field input,
+.materials-field select,
+.materials-component input {
+  font: inherit;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--ink);
+  min-width: 0;
+  width: 100%;
+}
+
+.materials-fieldset {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+/* The legend carries the live readout: oxides' current percentage and the
+   effective LOI, right-aligned on the same line. */
+.materials-legend {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 0 2px;
+}
+
+.materials-legend-total {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* The oxide grid: every catalog oxide as a compact label:input cell, flowing
+   into as many columns as the panel fits. */
+.materials-components {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 6px 12px;
+}
+
+.materials-component {
+  display: grid;
+  grid-template-columns: minmax(5ch, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.materials-component-actions,
+.materials-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.materials-json {
+  margin-top: 12px;
+}
+
+.materials-json-output {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #f6f7f9;
+  resize: vertical;
+}
+
+.materials-json-status {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}

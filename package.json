@@ -1,0 +1,22 @@
+{
+  "name": "glaze-calc",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "d3-shape": "^3.2.0",
+    "d3-zoom": "^3.0.0"
+  }
+}

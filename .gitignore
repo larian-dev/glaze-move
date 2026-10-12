@@ -1,0 +1,6 @@
+node_modules/
+dist/
+# Local reference archive only — the runtime images it fed live in src/assets/.
+resources/
+# Local calibration utility: a developer tool, not part of the public app.
+src/pages/calibrate.ts
