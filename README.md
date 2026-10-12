@@ -3,7 +3,7 @@
 Glaze calculator with the ability to drag resulting glaze on the Stull chart. You can toggle the flux ratio, boron and additions for the solver to try and preserve their UMF values. Automatically draws possible drag area on the chart.  
 Глазурный калькулятор с возможностью таскать точки на графике Сталла. Можно закрепить пропорции флюсов, количество бора и все добавки, чтобы солвер сохранял их юнити значения при перетаскивании. Зона для возможного перетаскивания отрисовывается автоматически.
 
-Inspired by and built on the published work of [calc.portalkeramiki.ru](https://calc.portalkeramiki.ru), [glazy.org](https://glazy.org), and [segerlab.ru](https://segerlab.ru).
+Inspired by and built on the published work of [calc.portalkeramiki.ru](https://calc.portalkeramiki.ru), [glazy.org](https://glazy.org),[ceramicmaterialsworkshop.com](https://ceramicmaterialsworkshop.com), and [segerlab.ru](https://segerlab.ru).
 
 **English** · [Русский](#глазурный-двигатель)
 
