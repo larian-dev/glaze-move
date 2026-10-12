@@ -1,7 +1,7 @@
 # Glaze Move
 
-Glaze calculator with the ability to drag resulting glaze on the Stull chart. You can toggle the flux ratio, boron and additions for the solver to try and preserve their UMF values. Automatically draws possible drag area on the chart.  
-Глазурный калькулятор с возможностью таскать точки на графике Сталла. Можно закрепить пропорции флюсов, количество бора и все добавки, чтобы солвер сохранял их юнити значения при перетаскивании. Зона для возможного перетаскивания отрисовывается автоматически.
+Glaze calculator with the ability to drag resulting glaze on the Stull chart. You can hold the additions as entered, or pin the flux ratio and boron for the solver to preserve their UMF values. Automatically draws possible drag area on the chart.  
+Глазурный калькулятор с возможностью таскать точки на графике Сталла. Можно удерживать добавки на введённом количестве, а пропорции флюсов и количество бора закрепить, чтобы солвер сохранял их юнити значения при перетаскивании. Зона для возможного перетаскивания отрисовывается автоматически.
 
 Inspired by and built on the published work of [calc.portalkeramiki.ru](https://calc.portalkeramiki.ru), [glazy.org](https://glazy.org),[ceramicmaterialsworkshop.com](https://ceramicmaterialsworkshop.com), and [segerlab.ru](https://segerlab.ru).
 
@@ -23,10 +23,14 @@ Inspired by and built on the published work of [calc.portalkeramiki.ru](https://
 - **Triaxial and boron maps** — the recipe plotted on published reference diagrams; the
   triaxial map zooms 1–8× under the wheel (shift-drag pans, ± / 0 from the keyboard); the
   boron map's vertical axis is cone-stepped (Orton cones Δ06–Δ10), not linear °C.
-- **Drag clamps** — *Clamp additions* keeps every addition's chemistry pinned while you
-  drag; *Clamp flux ratio* refuses drags that would shift the R₂O:RO balance; *Clamp
-  boron* holds the glaze's B₂O₃ while the Stull point moves. The UMF panel tints every
-  value an enabled clamp is holding; entries without a clamp stay plain.
+- **Drag clamps** — the *Additions* switch cycles three ways: **amount** holds every
+  addition's number, so a drag rewrites the base around it; **unity** holds its share of the
+  flux instead — its contribution to the unity formula — so its amount follows the batch;
+  **free** leaves the additions to the solver. *Clamp flux ratio* holds the R₂O:RO
+  balance where it is — a drag that would shift it is refused; off, the freedom goes into
+  moving the recipe as little as possible and the balance drifts with it; *Clamp boron*
+  holds the glaze's B₂O₃ while the Stull point moves. The UMF panel tints the values a
+  clamp is holding — B₂O₃ and the R₂O:RO tile; entries without one stay plain.
 - **History & transfer** — session checkpoints with one-click restore, JSON export, and
   share links that encode the recipe right in the URL — importing accepts a pasted link
   or code.
@@ -85,11 +89,15 @@ line. Materials you add yourself are stored in your browser only.
   диаграммах; троичная диаграмма масштабируется колесом 1–8× (Shift-перетаскивание —
   панорама, ± / 0 — с клавиатуры); вертикальная ось диаграммы бора идёт по конусам
   (ортоновские конусы Δ06–Δ10), а не по линейным °C.
-- **Фиксаторы при перетаскивании** — «Фиксировать добавки» удерживает химию каждой
-  добавки, пока вы тянете точку; «Фиксировать соотношение флюсов» отвергает переносы,
-  сдвигающие баланс R₂O:RO; «Фиксировать бор» удерживает B₂O₃ глазури, пока точка
-  Стулла движется. Значения, удерживаемые включёнными фиксаторами, подсвечены зелёным
-  в таблице формулы; без фиксатора строка остаётся без подсветки.
+- **Фиксаторы при перетаскивании** — переключатель «Добавки» проходит три состояния:
+  «количество» удерживает введённое число каждой добавки, и перенос переписывает только
+  базу; «формула Зегера» удерживает её долю флюса — вклад добавки в формулу, — так что её
+  количество следует за шихтой; «свободно» отдаёт добавки решателю. «Фиксировать
+  соотношение флюсов» удерживает баланс R₂O:RO — перенос, сдвигающий его, отвергается;
+  без фиксатора свобода уходит на минимальное изменение рецепта, и баланс смещается
+  вместе с ним; «Фиксировать бор» удерживает B₂O₃ глазури, пока точка Стулла движется.
+  Значения, удерживаемые фиксаторами, подсвечены зелёным в таблице формулы (B₂O₃ и
+  плитка R₂O:RO); без фиксатора строка остаётся без подсветки.
 - **История и обмен данными** — контрольные точки сессии с восстановлением в один
   клик, экспорт JSON и ссылки, кодирующие рецепт прямо в URL; импорт принимает
   вставленную ссылку или код.

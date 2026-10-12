@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   FEASIBLE_GRID_STEP_X,
   FEASIBLE_GRID_STEP_Y,
@@ -200,5 +200,50 @@ describe('solveForStullTarget emptied rows', () => {
     // among them — it was never moved by the solve.
     expect(after.emptied).toEqual(before.emptied);
     expect(after.emptied).not.toContain(RECIPE.length);
+  });
+});
+
+describe('debug output', () => {
+  /** The recipe from the share link that raised the region-change question — a
+   *  frit-led base with a Gzhel addition, distinct from the fixture above. */
+  const REPORTED: RecipeRow[] = [
+    { materialId: '1', amount: 24.44, kind: 'main' },
+    { materialId: '25', amount: 62.77, kind: 'main' },
+    { materialId: '16', amount: 3.48, kind: 'main' },
+    { materialId: '3', amount: 9.31, kind: 'main' },
+    { materialId: '37', amount: 26.57, kind: 'additional' },
+  ];
+  const options = { includeAdditions: true, clampFluxRatio: true };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('stays silent without the flag', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    solveForStullTarget(REPORTED, materials, { x: 4.2, y: 0.82 }, options);
+    feasibleAreas(REPORTED, materials, options);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('logs one line per scan and per single solve, not one per sampled cell', () => {
+    vi.stubGlobal('localStorage', { getItem: () => '1' });
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    solveForStullTarget(REPORTED, materials, { x: 4.2, y: 0.82 }, options);
+    feasibleAreas(REPORTED, materials, options);
+    expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([
+      '[glaze-calc solve]',
+      '[glaze-calc region]',
+    ]);
+
+    // The scan's own solves — one per cell — stay quiet, and a repeat scan
+    // reports the cache hit instead of re-solving.
+    feasibleAreas(REPORTED, materials, options);
+    expect(spy).toHaveBeenCalledTimes(3);
+    const repeat = spy.mock.calls[2]?.[1];
+    const cachedFlag =
+      typeof repeat === 'object' && repeat !== null && 'cached' in repeat ? repeat.cached : undefined;
+    expect(cachedFlag).toBe(true);
   });
 });

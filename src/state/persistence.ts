@@ -1,4 +1,5 @@
 import type { RecipeRow } from '../types';
+import type { AdditionClamp } from '../core/solve';
 import type { Lang } from '../i18n';
 import { isLang } from '../i18n';
 
@@ -12,10 +13,10 @@ export type PersistedForm = {
   includeAdditions: boolean;
   /** Refuse any drag solve that would move the R₂O:RO ratio off its start. */
   clampFluxRatio: boolean;
-  /** Clamp every addition in the drag solve: each keeps its dominant oxide's
-   *  unity value while its parts follow the base. Off, the solver may rewrite
-   *  addition amounts as carriers. */
-  clampAdditions: boolean;
+  /** What a drag may do to the additions: hold their amount (the number the
+   *  recipe shows), hold their share of the flux (their unity value), or leave
+   *  them to the solver. */
+  additionClamp: AdditionClamp;
   /** Hold the batch's unity B₂O₃ through a drag, so the boron map's marker
    *  stays put while the Stull point moves. */
   clampBoron: boolean;
@@ -31,7 +32,7 @@ export const DEFAULT_FORM: PersistedForm = {
   roFlux: 'CaO',
   includeAdditions: true,
   clampFluxRatio: false,
-  clampAdditions: true,
+  additionClamp: 'amount',
   clampBoron: false,
 };
 
@@ -123,6 +124,19 @@ function isUnitDisplay(value: unknown): value is PersistedForm['unitDisplay'] {
   return value === 'unity' || value === 'molePercent';
 }
 
+function isAdditionClamp(value: unknown): value is AdditionClamp {
+  return value === 'amount' || value === 'unity' || value === 'free';
+}
+
+/** The stored clamp wins. A form written before the three-way switch carries
+ *  its boolean over — `true` held the amounts, `false` left them free — and an
+ *  older form still carries the legacy global drag-solve flag. */
+function additionClampOf(raw: Record<string, unknown>, legacyExcluded: boolean): AdditionClamp {
+  if (isAdditionClamp(raw.additionClamp)) return raw.additionClamp;
+  if (typeof raw.clampAdditions === 'boolean') return raw.clampAdditions ? 'amount' : 'free';
+  return legacyExcluded ? 'free' : DEFAULT_FORM.additionClamp;
+}
+
 function parseForm(value: unknown): PersistedForm | null {
   if (typeof value !== 'object' || value === null) return null;
   const raw = value as Record<string, unknown>;
@@ -143,14 +157,9 @@ function parseForm(value: unknown): PersistedForm | null {
       typeof raw.includeAdditions === 'boolean' ? raw.includeAdditions : DEFAULT_FORM.includeAdditions,
     clampFluxRatio:
       typeof raw.clampFluxRatio === 'boolean' ? raw.clampFluxRatio : DEFAULT_FORM.clampFluxRatio,
-    // The stored switch wins; the legacy global flag only speaks when the new
+    // The stored clamp wins; the legacy global flag only speaks when the new
     // key is absent, which is exactly the forms it was written for.
-    clampAdditions:
-      typeof raw.clampAdditions === 'boolean'
-        ? raw.clampAdditions
-        : legacyExcluded
-          ? false
-          : DEFAULT_FORM.clampAdditions,
+    additionClamp: additionClampOf(raw, legacyExcluded),
     clampBoron: typeof raw.clampBoron === 'boolean' ? raw.clampBoron : DEFAULT_FORM.clampBoron,
   };
 }

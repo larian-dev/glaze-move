@@ -542,6 +542,23 @@ h3 {
   background: #ffffff;
 }
 
+/* A cycling switch: one button that names the state it is in. The accent marks
+   a clamp that is holding something; a free drag stays muted. */
+.recipe-cycle {
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--accent);
+}
+
+.recipe-cycle:hover {
+  border-color: var(--accent);
+}
+
+.recipe-cycle[data-state='free'] {
+  color: var(--muted);
+}
+
 .recipe-add {
   margin-top: 8px;
 }

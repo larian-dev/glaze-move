@@ -1,4 +1,5 @@
 import type { Material, RecipeRow } from '../types';
+import { debugLog } from '../debug';
 import { solveForStullTarget, type SolveOptions } from './solve';
 import type { MaterialChemistry } from './geometry';
 
@@ -29,11 +30,16 @@ function gridValues(min: number, max: number, step: number): number[] {
   return values;
 }
 
+/** Sampled cells that hold a mark — what the region log counts. */
+function countCells(cells: boolean[][]): number {
+  return cells.reduce((sum, column) => sum + column.filter(Boolean).length, 0);
+}
+
 /** The solve options a zone scan varies — the same switches the drag commits
  *  through, minus the per-scan chemistry cache. */
 type ZoneOptions = Pick<
   SolveOptions,
-  'includeAdditions' | 'clampFluxRatio' | 'clampAdditions' | 'clampBoron'
+  'includeAdditions' | 'clampFluxRatio' | 'additionClamp' | 'clampBoron'
 >;
 
 function regionKey(
@@ -58,7 +64,7 @@ function regionKey(
   // boron it must hold, so all of them decide the region too.
   return `${rowsKey}#${materialsKey}#adds:${options.includeAdditions === true}#clamp:${
     options.clampFluxRatio === true
-  }#addClamp:${options.clampAdditions === false ? 0 : 1}#boron:${options.clampBoron === true ? 1 : 0}`;
+  }#addClamp:${options.additionClamp ?? 'amount'}#boron:${options.clampBoron === true ? 1 : 0}`;
 }
 
 /**
@@ -190,7 +196,10 @@ export function feasibleAreas(
   options: ZoneOptions = {},
 ): FeasibleAreas {
   const key = regionKey(rows, materials, options);
-  if (key === cachedKey) return cachedAreas;
+  if (key === cachedKey) {
+    debugLog('region', { key, cached: true });
+    return cachedAreas;
+  }
 
   const xs = gridValues(STULL_BOX.minX, STULL_BOX.maxX, FEASIBLE_GRID_STEP_X);
   const ys = gridValues(STULL_BOX.minY, STULL_BOX.maxY, FEASIBLE_GRID_STEP_Y);
@@ -230,5 +239,12 @@ export function feasibleAreas(
   };
   cachedKey = key;
   cachedAreas = areas;
+  debugLog('region', {
+    key,
+    cached: false,
+    draggable: countCells(draggableCells),
+    emptied: countCells(emptiedCells),
+    rings: `${areas.draggable.length}/${areas.emptied.length}`,
+  });
   return areas;
 }

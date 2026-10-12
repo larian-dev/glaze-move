@@ -84,3 +84,29 @@ export function switchToggle(
   });
   return button;
 }
+
+/** A cycling switch: one button that steps through a setting's values and names
+ *  the state it is in, so a three-way clamp needs neither a radio group nor a
+ *  legend. The value rides `data-state` for styling; the label is the
+ *  accessible name. */
+export function cycleToggle<T extends string>(
+  values: readonly T[],
+  current: () => T,
+  label: (value: T) => string,
+  onChange: (value: T) => void,
+): HTMLButtonElement {
+  const button = el('button', { type: 'button', class: 'recipe-toggle recipe-cycle' });
+  const paint = (value: T): void => {
+    setText(button, label(value));
+    button.dataset.state = value;
+  };
+  paint(current());
+  button.addEventListener('click', () => {
+    // An unknown current value cycles to the first state rather than nowhere.
+    const next = values[(values.indexOf(current()) + 1) % values.length];
+    if (next === undefined) return;
+    onChange(next);
+    paint(next);
+  });
+  return button;
+}

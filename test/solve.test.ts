@@ -134,16 +134,13 @@ describe('solveForStullTarget with additions in the solve', () => {
     expect(unityOf(result.rows, true).x).toBeCloseTo(target.x, 2);
     expect(unityOf(result.rows, true).y).toBeCloseTo(target.y, 2);
 
-    // The base is written back at exactly 100 and the clamped addition keeps the
-    // unity value of its own dominant oxide; its parts are what follows the base.
+    // The base is written back at exactly 100 and the clamped addition is held
+    // as entered: the pin ties its amount to the base, so the number survives.
     const isAddition = (row: RecipeRow): boolean => row.kind === 'additional';
     expect(
       result.rows.filter((row) => row.kind === 'main').reduce((sum, row) => sum + row.amount, 0),
     ).toBeCloseTo(100, 6);
-    expect(unityValueOf(result.rows, 'CaO', isAddition)).toBeCloseTo(
-      unityValueOf(ROWS_WITH_ADDITION, 'CaO', isAddition),
-      3,
-    );
+    expect(result.rows.find(isAddition)?.amount).toBe(ADDITION.amount);
 
     // Excluded from the solve, the same addition pushes the whole batch off the
     // target the user dropped the point on — the reason the two share a basis.
@@ -170,8 +167,15 @@ describe('solveForStullTarget with additions in the solve', () => {
   it('lands a target on a two-carrier base, pinning the addition and the base at 100', () => {
     // Two carriers plus one pinned addition are three unknowns for the two
     // target rows and the pin, so the fit stays square — and the base still
-    // comes back at exactly 100 with the addition's dominant oxide held.
-    const target = { x: 4, y: 0.4 };
+    // comes back at exactly 100 with the addition held as entered. Both
+    // carriers are flux-free, so the pin leaves the point a curve to move on;
+    // the target is read off a recipe that sits on it.
+    const onCurve: RecipeRow[] = [
+      { materialId: FLUXLESS_SILICA.id, amount: 50, kind: 'main' },
+      { materialId: FLUXLESS_ALUMINA.id, amount: 50, kind: 'main' },
+      ADDITION,
+    ];
+    const target = unityOf(onCurve, true, fluxlessMats);
     const result = solveForStullTarget(FLUXLESS_ROWS, fluxlessMats, target, {
       includeAdditions: true,
     });
@@ -184,10 +188,7 @@ describe('solveForStullTarget with additions in the solve', () => {
     expect(
       result.rows.filter((row) => row.kind === 'main').reduce((sum, row) => sum + row.amount, 0),
     ).toBeCloseTo(100, 6);
-    expect(unityValueOf(result.rows, 'CaO', isAddition, fluxlessMats)).toBeCloseTo(
-      unityValueOf(FLUXLESS_ROWS, 'CaO', isAddition, fluxlessMats),
-      3,
-    );
+    expect(result.rows.find(isAddition)?.amount).toBe(ADDITION.amount);
     // This base has RO (whiting) and no R₂O at all: there is no starting ratio
     // to drift from, and the caller must not receive a NaN for it.
     expect(Number.isFinite(result.r2oRoDrift)).toBe(true);
@@ -206,10 +207,10 @@ describe('solveForStullTarget with additions in the solve', () => {
     expect(feasibleAreas(withBigAddition, materials, {})).toEqual(excluded);
   });
 
-  it('rewrites a clamped addition so its dominant oxide holds its unity value', () => {
+  it('holds a clamped addition as entered while the base absorbs the drag', () => {
     // A 50-part quartz addition is the richest silica row in the recipe; its
     // clamp switch is on, so it is pinned rather than picked as a carrier — the
-    // drag adjusts its parts to keep its own SiO₂ unity value where it was.
+    // drag rewrites the base and the addition's written number survives it.
     const rows: RecipeRow[] = [
       ...RECIPE,
       { materialId: QUARTZ.id, amount: 50, kind: 'additional' },
@@ -220,37 +221,79 @@ describe('solveForStullTarget with additions in the solve', () => {
     if (!result.ok) return;
 
     const isAddition = (row: RecipeRow): boolean => row.kind === 'additional';
-    const addition = result.rows.find(isAddition);
-    expect(addition?.amount).not.toBe(50);
-    expect(addition?.amount).toBeGreaterThan(0);
+    expect(result.rows.find(isAddition)?.amount).toBe(50);
     expect(unityOf(result.rows, true).x).toBeCloseTo(target.x, 2);
     expect(unityOf(result.rows, true).y).toBeCloseTo(target.y, 2);
-    expect(unityValueOf(result.rows, 'SiO2', isAddition)).toBeCloseTo(
-      unityValueOf(rows, 'SiO2', isAddition),
-      2,
-    );
     expect(
       result.rows.filter((row) => row.kind === 'main').reduce((sum, row) => sum + row.amount, 0),
     ).toBeCloseTo(100, 6);
   });
 
+  it('holds a unity-clamped addition by its share of the flux, letting its amount follow', () => {
+    // The same clamp, the other hold: the addition keeps the share of the flux
+    // it entered with — its contribution to the unity formula — so the drag may
+    // rewrite its amount, and does. The amount hold is the one that keeps the
+    // written number instead.
+    const rows: RecipeRow[] = [...RECIPE, ADDITION];
+    const start = unityOf(rows, true);
+    const target = { x: start.x + 0.6, y: start.y + 0.05 };
+    const held = solveForStullTarget(rows, materials, target, {
+      includeAdditions: true,
+      additionClamp: 'unity',
+    });
+    const byAmount = solveForStullTarget(rows, materials, target, {
+      includeAdditions: true,
+      additionClamp: 'amount',
+    });
+    expect(held.ok).toBe(true);
+    expect(byAmount.ok).toBe(true);
+    if (!held.ok || !byAmount.ok) return;
+
+    /** The addition's flux moles over the whole displayed chemistry's. */
+    const fluxShare = (solved: RecipeRow[]): number => {
+      let flux = 0;
+      let own = 0;
+      for (const row of solved) {
+        const material = materials.get(row.materialId);
+        if (!material) continue;
+        const moles = row.amount * moleCoefficients(material).flux;
+        flux += moles;
+        if (row.kind === 'additional') own += moles;
+      }
+      return flux > 0 ? own / flux : 0;
+    };
+    const additionAmount = (solved: RecipeRow[]): number =>
+      solved.filter((row) => row.kind === 'additional').reduce((sum, row) => sum + row.amount, 0);
+
+    // Cent rounding in the write-back moves the share by a few 1e-4.
+    expect(fluxShare(held.rows)).toBeCloseTo(fluxShare(rows), 3);
+    expect(additionAmount(held.rows)).not.toBeCloseTo(additionAmount(rows), 2);
+    expect(additionAmount(byAmount.rows)).toBeCloseTo(additionAmount(rows), 2);
+    expect(unityOf(held.rows, true).x).toBeCloseTo(target.x, 2);
+    expect(unityOf(held.rows, true).y).toBeCloseTo(target.y, 2);
+  });
+
   it('may rewrite an unclamped addition chosen as a carrier, still landing exactly', () => {
-    // The same 50-part addition with the additions clamp OFF joins the pool and
-    // wins the silica seat — the drag is then allowed to rewrite its amount,
-    // while the whole-batch point still lands on the dropped target.
+    // A base with no free silica source of its own: with the clamp OFF the
+    // quartz addition joins the pool and takes the silica seat, so the drag is
+    // allowed to rewrite its amount — while the whole-batch point still lands
+    // on the dropped target.
     const rows: RecipeRow[] = [
-      ...RECIPE,
-      { materialId: QUARTZ.id, amount: 50, kind: 'additional' },
+      { materialId: NEPHELINE.id, amount: 60, kind: 'main' },
+      { materialId: KAOLIN.id, amount: 40, kind: 'main' },
+      { materialId: QUARTZ.id, amount: 30, kind: 'additional' },
     ];
-    const target = { x: 5, y: 0.55 };
+    const start = unityOf(rows, true);
+    const target = { x: start.x - 0.5, y: start.y - 0.05 };
     const result = solveForStullTarget(rows, materials, target, {
       includeAdditions: true,
-      clampAdditions: false,
+      additionClamp: 'free',
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(result.rows.find((row) => row.kind === 'additional')?.amount).not.toBe(50);
+    const addition = result.rows.find((row) => row.kind === 'additional');
+    expect(addition?.amount).not.toBe(30);
     expect(unityOf(result.rows, true).x).toBeCloseTo(target.x, 2);
     expect(unityOf(result.rows, true).y).toBeCloseTo(target.y, 2);
   });
@@ -621,7 +664,7 @@ describe('solveForStullTarget carrier seats', () => {
   it('offers a wide zone instead of the strip the frozen quartz used to leave', () => {
     const zones = feasibleAreas(FRIT_RECIPE, materials, {
       includeAdditions: true,
-      clampAdditions: true,
+      additionClamp: 'amount',
     });
     expect(zones.draggable.length).toBeGreaterThan(0);
     const maxX = Math.max(...zones.draggable.flat().map((point) => point.x));
@@ -681,19 +724,27 @@ describe('solveForStullTarget clamp boron', () => {
     ).toBeCloseTo(100, 6);
   });
 
-  it('stays solvable when a pinned frit already enforces the boron hold', () => {
-    // The frit is the sole B₂O₃ source and clamped on its dominant oxide: the
-    // hold would duplicate that pin's row verbatim, so it drops out and the pin
-    // keeps the value — the solve lands instead of going singular.
+  it('keeps the boron hold alongside a pinned boron frit', () => {
+    // The frit is the sole B₂O₃ source and the additions clamp freezes it, so
+    // the hold and the pin both weigh on the fit: the drag lands only where the
+    // base can carry the target with the batch flux left where it was — and
+    // where it lands, the frit and the B₂O₃ both stay put.
     const rows: RecipeRow[] = [...WORKING_RECIPE, { materialId: '5', amount: 10, kind: 'additional' }];
     const start = unityOf(rows, true);
     const before = unityValueOf(rows, 'B2O3');
-    const target = { x: start.x + 0.3, y: start.y };
+    const target = { x: start.x - 0.02, y: start.y };
     const result = solveForStullTarget(rows, materials, target, { includeAdditions: true, clampBoron: true });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(unityOf(result.rows, true).x).toBeCloseTo(target.x, 2);
     expect(unityValueOf(result.rows, 'B2O3')).toBeCloseTo(before, 3);
+    // Every addition is held: the base reads 100, so each keeps its share.
+    for (const row of rows) {
+      if (row.kind !== 'additional') continue;
+      expect(
+        result.rows.find((out) => out.kind === 'additional' && out.materialId === row.materialId)?.amount,
+      ).toBe(row.amount);
+    }
   });
 
   it('refuses a recipe that cannot afford the hold a mover of its own', () => {

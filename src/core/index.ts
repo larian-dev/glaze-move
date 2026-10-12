@@ -17,7 +17,6 @@ export {
   type UnityGroup,
 } from './umf';
 export {
-  dominantOxideMolesPerPart,
   moleCoefficients,
   oxideMolesPerPart,
   type MaterialChemistry,
@@ -27,6 +26,7 @@ export {
   solveForStullTarget,
   solveForTarget,
   triaxialAxes,
+  type AdditionClamp,
   type SolveAxis,
   type SolveRejection,
   type SolveResult,

@@ -19,7 +19,6 @@ import {
   chemistryRows,
   costPerKg,
   cte,
-  dominantOxideMolesPerPart,
   feasibleAreas,
   firingTemperatureK,
   loiPercent,
@@ -33,8 +32,9 @@ import {
   triaxialAxes,
   unityFormula,
 } from '../core';
-import type { SolveRejection } from '../core';
+import type { AdditionClamp, SolveRejection } from '../core';
 import { OXIDE_BY_FORMULA, SYSTEM_MATERIALS, materialIndex } from '../data/catalog';
+import { debugLog, debugRows } from '../debug';
 import { t } from '../i18n';
 import type { Lang, TranslationKey } from '../i18n';
 import { bindStore, createStore } from '../state/form';
@@ -53,7 +53,7 @@ import type { PersistedForm } from '../state/persistence';
 import type { Material, MaterialIndex, RecipeRow } from '../types';
 import { createChangeHistory, createRecipeEditor, createResults, el, setText } from '../ui';
 import type { ResultsValues, UnitDisplay } from '../ui';
-import { switchToggle } from '../ui/dom';
+import { cycleToggle, switchToggle } from '../ui/dom';
 
 export type CalculatorPage = {
   setLang: (lang: Lang) => void;
@@ -84,14 +84,26 @@ function materialIndexOf(state: FormState): MaterialIndex {
 /**
  * Shown on a first visit so the app opens on a real recipe rather than an empty
  * form. Ids are the ones in `src/data/materials.json`: quartz, nepheline,
- * kaolin, chalk. Applied only when nothing is stored and no share link is present.
+ * kaolin, chalk, plus Gzhel clay body as an addition — something for the
+ * additions clamp to act on. Applied only when nothing is stored and no share
+ * link is present.
  */
 const DEFAULT_RECIPE: RecipeRow[] = [
   { materialId: '2', amount: 40, kind: 'main' },
   { materialId: '1', amount: 30, kind: 'main' },
   { materialId: '4', amount: 20, kind: 'main' },
   { materialId: '3', amount: 10, kind: 'main' },
+  { materialId: '16', amount: 10, kind: 'additional' },
 ];
+
+/** The additions clamp's three states, in cycle order, and the label each one
+ *  shows: the switch names the state it is in, so the row needs no legend. */
+const ADDITION_CLAMPS: readonly AdditionClamp[] = ['amount', 'unity', 'free'];
+const additionClampKeys: Record<AdditionClamp, TranslationKey> = {
+  amount: 'stull.clampAmount',
+  unity: 'stull.clampUnity',
+  free: 'stull.clampFree',
+};
 
 /** `?recipe=` wins over the stored form; display settings always come from storage. */
 function initialState(lang: Lang, materials: Material[]): FormState {
@@ -115,7 +127,7 @@ function initialState(lang: Lang, materials: Material[]): FormState {
     roFlux: stored?.roFlux ?? '',
     includeAdditions: stored?.includeAdditions ?? DEFAULT_FORM.includeAdditions,
     clampFluxRatio: stored?.clampFluxRatio ?? DEFAULT_FORM.clampFluxRatio,
-    clampAdditions: stored?.clampAdditions ?? DEFAULT_FORM.clampAdditions,
+    additionClamp: stored?.additionClamp ?? DEFAULT_FORM.additionClamp,
     clampBoron: stored?.clampBoron ?? DEFAULT_FORM.clampBoron,
     materials,
   };
@@ -129,7 +141,7 @@ function persistable(state: FormState): PersistedForm {
     roFlux: state.roFlux,
     includeAdditions: state.includeAdditions,
     clampFluxRatio: state.clampFluxRatio,
-    clampAdditions: state.clampAdditions,
+    additionClamp: state.additionClamp,
     clampBoron: state.clampBoron,
   };
 }
@@ -159,36 +171,9 @@ function stullFlux(rows: RecipeRow[], materials: MaterialIndex): number {
 }
 
 /**
- * The unity values the enabled clamps are holding for the displayed chemistry —
- * the oxide formulas the results panel tints. The additions clamp pins each
- * addition's dominant oxide, and it only bites while the additions are in the
- * UMF; the boron clamp holds the displayed B₂O₃ and drops out of a batch
- * without it. The R₂O:RO clamp is the third one and is no entry: the panel
- * tints its ratio tile from the switch instead.
- */
-function clampedOxides(
-  state: FormState,
-  materials: MaterialIndex,
-  moles: Map<string, number>,
-): Record<string, true> {
-  const clamped: Record<string, true> = {};
-  if (state.includeAdditions && state.clampAdditions) {
-    for (const row of state.rows) {
-      if (row.kind !== 'additional') continue;
-      const material = materials.get(row.materialId);
-      const dominant = material ? dominantOxideMolesPerPart(material) : null;
-      if (dominant) clamped[dominant.oxide] = true;
-    }
-  }
-  if (state.clampBoron && (moles.get('B2O3') ?? 0) > 0) clamped.B2O3 = true;
-  return clamped;
-}
-
-/**
  * One pass from rows + materials to everything the page shows. The triaxial point
  * uses the whole batch; the Stull point, hull and drag solve follow the UMF
- * switch and each addition's own drag-solve switch — the base alone, or the
- * selected additions frozen in.
+ * switch and the additions clamp — the base alone, or the additions pinned in.
  */
 function compute(state: FormState, materials: MaterialIndex, zoom: Domain | null): Computed {
   const mainRows = state.rows.filter((row) => row.kind === 'main');
@@ -200,7 +185,7 @@ function compute(state: FormState, materials: MaterialIndex, zoom: Domain | null
   const solveOptions = {
     includeAdditions: state.includeAdditions,
     clampFluxRatio: state.clampFluxRatio,
-    clampAdditions: state.clampAdditions,
+    additionClamp: state.additionClamp,
     clampBoron: state.clampBoron,
   };
 
@@ -218,12 +203,29 @@ function compute(state: FormState, materials: MaterialIndex, zoom: Domain | null
     firing: firingTemperatureK(meltability.k, meltability.approximate),
     costPerKg: costPerKg(state.rows, materials),
     loi: loiPercent(state.rows, materials),
-    clamped: clampedOxides(state, materials, moles),
+    // The additions clamp holds each addition's own amount — or its share of the
+    // flux — so it has no single UMF entry to tint; the boron clamp holds the
+    // displayed B₂O₃ and drops out of a batch without it. The R₂O:RO clamp tints
+    // its ratio tile instead.
+    clamped: state.clampBoron && (moles.get('B2O3') ?? 0) > 0 ? { B2O3: true } : {},
     clampedFluxRatio: state.clampFluxRatio,
   };
 
   const chartMoles = batchMoles(chartRows, materials, OXIDE_BY_FORMULA);
   const chartFlux = stullFlux(chartRows, materials);
+  const point = stullPoint(chartMoles, chartFlux);
+  // One console line per recompute when the debug flag is on: the switches the
+  // drags will obey, the rows they start from and the point on the map.
+  debugLog('state', {
+    switches: {
+      inUmf: state.includeAdditions,
+      additions: state.additionClamp,
+      fluxRatio: state.clampFluxRatio,
+      boron: state.clampBoron,
+    },
+    rows: debugRows(state.rows),
+    point: point ? `${point.x.toFixed(3)}/${point.y.toFixed(3)}` : 'none',
+  });
 
   const roPresent = presentRoFluxes(moles);
   const roSelected = resolveRoFlux(state.roFlux, moles, roPresent);
@@ -239,7 +241,7 @@ function compute(state: FormState, materials: MaterialIndex, zoom: Domain | null
     values,
     stull: buildStullModel({
       lang: state.lang,
-      point: stullPoint(chartMoles, chartFlux),
+      point,
       areas: feasibleAreas(chartRows, materials, solveOptions),
       domain: zoom,
     }),
@@ -318,17 +320,19 @@ export function renderCalculatorPage(
     el('div', { class: 'button-row' }, [importApply, importCancel]),
   ]);
 
-  // The drag solver's two switches live with the chart they govern: they decide
-  // what the solve — and therefore the dashed hull — is allowed to do.
+  // The drag solver's switches live with the chart they govern: they decide
+  // what the solve — and therefore the dashed hull — is allowed to do. The
+  // additions clamp is one switch in three states, its label naming the state.
   const clampSwitch = switchToggle(
     () => state.get().clampFluxRatio,
     t(lang, 'stull.clampFluxRatio'),
     (value) => state.set({ clampFluxRatio: value }),
   );
-  const clampAdditionsSwitch = switchToggle(
-    () => state.get().clampAdditions,
-    t(lang, 'stull.clampAdditions'),
-    (value) => state.set({ clampAdditions: value }),
+  const clampAdditionsToggle = cycleToggle(
+    ADDITION_CLAMPS,
+    () => state.get().additionClamp,
+    (value) => t(lang, additionClampKeys[value]),
+    (value) => state.set({ additionClamp: value }),
   );
   const clampBoronSwitch = switchToggle(
     () => state.get().clampBoron,
@@ -376,7 +380,7 @@ export function renderCalculatorPage(
         attrs: { role: 'tabpanel', id: 'chart-view-stull', 'aria-labelledby': 'chart-tab-stull' },
       },
       [
-        el('div', { class: 'panel-head' }, [clampSwitch, clampAdditionsSwitch, clampBoronSwitch]),
+        el('div', { class: 'panel-head' }, [clampSwitch, clampAdditionsToggle, clampBoronSwitch]),
         stullHint,
         stullChart,
         stullNotice,
@@ -582,6 +586,7 @@ function paintRoTools(): void {
    * rejected target leaves no trace at all, not even a history entry.
    */
   function rejectStullDrag(notice: string): void {
+    debugLog('drag', { chart: 'stull', verdict: notice ? 'refused' : 'cancelled', notice });
     // Rebuild rather than mutate, so the chart model is the one thing that knows
     // what is on screen.
     computed = compute(state.get(), materials, stullZoom);
@@ -609,6 +614,7 @@ function paintRoTools(): void {
 
   /** A refused triaxial drag: say why, repaint the committed model. */
   function rejectTriaxialDrag(notice: string): void {
+    debugLog('drag', { chart: 'triaxial', verdict: notice ? 'refused' : 'cancelled', notice });
     setText(triaxialNotice, notice);
     adapter?.updateTriaxial(computed.triaxial);
   }
@@ -619,7 +625,7 @@ function paintRoTools(): void {
     const solved = solveForStullTarget(snapshot.rows, materials, target, {
       includeAdditions: snapshot.includeAdditions,
       clampFluxRatio: snapshot.clampFluxRatio,
-      clampAdditions: snapshot.clampAdditions,
+      additionClamp: snapshot.additionClamp,
       clampBoron: snapshot.clampBoron,
     });
 
@@ -656,7 +662,7 @@ function paintRoTools(): void {
       {
         includeAdditions: snapshot.includeAdditions,
         clampFluxRatio: snapshot.clampFluxRatio,
-        clampAdditions: snapshot.clampAdditions,
+        additionClamp: snapshot.additionClamp,
         clampBoron: snapshot.clampBoron,
       },
     );
@@ -737,9 +743,7 @@ function paintRoTools(): void {
     clampSwitch.setAttribute('aria-label', t(next, 'stull.clampFluxRatio'));
     const clampLabel = clampSwitch.querySelector('.recipe-toggle-label');
     if (clampLabel) setText(clampLabel, t(next, 'stull.clampFluxRatio'));
-    clampAdditionsSwitch.setAttribute('aria-label', t(next, 'stull.clampAdditions'));
-    const additionsLabel = clampAdditionsSwitch.querySelector('.recipe-toggle-label');
-    if (additionsLabel) setText(additionsLabel, t(next, 'stull.clampAdditions'));
+    setText(clampAdditionsToggle, t(next, additionClampKeys[state.get().additionClamp]));
     clampBoronSwitch.setAttribute('aria-label', t(next, 'stull.clampBoron'));
     const boronLabel = clampBoronSwitch.querySelector('.recipe-toggle-label');
     if (boronLabel) setText(boronLabel, t(next, 'stull.clampBoron'));

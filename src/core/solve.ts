@@ -1,4 +1,5 @@
 import type { Material, RecipeRow } from '../types';
+import { debugLog, debugRows } from '../debug';
 import {
   materialChemistry,
   oxideMolesPerPart,
@@ -20,18 +21,29 @@ export type SolveResult =
   | { ok: true; rows: RecipeRow[]; r2oRoDrift: number; /** Indices of the main rows the solve drove to zero. */ emptied: number[] }
   | { ok: false; reason: SolveRejection };
 
+/** What a drag may do to the `additional` rows. `amount` holds each addition's
+ *  number — its share of the base — so the drag rewrites only the base and the
+ *  written number survives (exactly, once the base reads 100); `unity` holds
+ *  each addition's share of the flux instead, so every oxide it brings keeps its
+ *  unity value and its amount follows the batch; `free` puts the additions in
+ *  the carrier pool, where the solver may rewrite them. The two holds exclude
+ *  each other: asking for both would fix the batch scale outright and fight the
+ *  target. */
+export type AdditionClamp = 'amount' | 'unity' | 'free';
+
 export type SolveOptions = {
   /** UMF gate: `additional` rows join the displayed chemistry and the point
    *  when set. */
   includeAdditions?: boolean;
-  /** Promise the starting R₂O:RO ratio: any target that cannot keep it is
-   *  refused instead of letting the balance drift quietly. */
+  /** Spend the fit's free parameter on the R₂O:RO balance — the point that
+   *  restores the entered ratio exactly — and refuse any target that cannot keep
+   *  it instead of letting the balance drift quietly. Off, the ratio is free to
+   *  move: the fit takes the point on its solution family closest to the entered
+   *  amounts. */
   clampFluxRatio?: boolean;
-  /** Clamp every addition: each keeps its dominant oxide's unity value while a
-   *  drag moves its parts along with the base. Off, the additions join the
-   *  carrier pool and the solver may rewrite their amounts. True by default —
-   *  the behaviour additions always had. */
-  clampAdditions?: boolean;
+  /** How every addition is treated while a drag refits the base — see
+   *  `AdditionClamp`. `amount` by default. */
+  additionClamp?: AdditionClamp;
   /** Hold the displayed chemistry's unity B₂O₃ through the drag — one extra
    *  equation that buys no unknown, so the fit needs a mover of its own; a
    *  recipe that cannot afford one is refused as over-constrained. A batch
@@ -480,8 +492,10 @@ function solveFit(equations: SolveEquation[], unknownCount: number): FitFamily |
  * Two hard constraints and three free carriers leave a one-parameter family of
  * exact solutions, x(t) = p + t·q. The ratio is R(t) = (N0 + t·N1)/(D0 + t·D1),
  * so the point that restores the starting ratio exactly is available in closed
- * form; non-negative amounts bound t to an interval, and the best we can do is
- * that point clamped to the interval.
+ * form; non-negative amounts bound t to an interval. `options.clampFluxRatio`
+ * spends the family's freedom on that point and refuses a target it cannot
+ * reach; without the clamp the fit takes the point on the family closest to the
+ * entered amounts, and the balance moves with it.
  *
  * With only two carriers there is no such family and the ratio drifts — which is
  * why a quartz-led base (a flux-free silica source) holds steady while a
@@ -489,12 +503,13 @@ function solveFit(equations: SolveEquation[], unknownCount: number): FitFamily |
  * the curve its materials can reach, at best.
  *
  * With `options.includeAdditions`, every `additional` row joins the displayed
- * chemistry. With `options.clampAdditions` (the default), each of them is then
- * **pinned**: its amount becomes an unknown constrained to keep the unity value
- * of its dominant oxide where it was, so the addition follows the base instead
- * of its recipe percentage being held — one equation per pinned row, and the
- * carrier family keeps the ratio freedom. With the clamp off, the additions
- * stay in the carrier pool, where the solver may pick and rewrite them. With
+ * chemistry. `options.additionClamp` then says what a drag may do to them:
+ * `amount` (the default) and `unity` both **pin** each addition — its amount
+ * becomes an unknown with one equation of its own, holding either the share of
+ * the base it entered with (the number the recipe shows survives the drag) or
+ * the share of the flux it brings (its unity value survives) — and the carrier
+ * family keeps the ratio freedom either way. `free` leaves the additions in the
+ * carrier pool, where the solver may pick and rewrite them. With
  * `options.clampBoron`, one more equation holds the displayed chemistry's unity
  * B₂O₃ — it buys no unknown, so the fit seats a mover to pay for it, and a
  * recipe that cannot afford one is refused as over-constrained. The ratio
@@ -505,7 +520,7 @@ function solveFit(equations: SolveEquation[], unknownCount: number): FitFamily |
  * totals exactly 100. All the ratios survive that scaling, so the pinned unity
  * values and the dragged point both come out where they were fitted.
  */
-export function solveForTarget(
+function solveTarget(
   rows: RecipeRow[],
   materials: Map<string, Material>,
   target: SolveTarget,
@@ -514,7 +529,7 @@ export function solveForTarget(
   const {
     includeAdditions = false,
     clampFluxRatio = false,
-    clampAdditions = true,
+    additionClamp = 'amount',
     clampBoron = false,
   } = options;
   // One chemistry derivation per material per scan: `hull` passes a cache in so
@@ -533,7 +548,7 @@ export function solveForTarget(
   // additions, whose amounts the solver may then rewrite.
   const mainCands = candidatesOf(rows, materials, 'main', chemistryOf);
   const addCands = includeAdditions ? candidatesOf(rows, materials, 'additional', chemistryOf) : [];
-  const pool = clampAdditions ? [...mainCands] : [...mainCands, ...addCands];
+  const pool = additionClamp === 'free' ? [...mainCands, ...addCands] : [...mainCands];
   if (pool.length < 2) return { ok: false, reason: 'too-few-rows' };
 
   // The displayed chemistry — the basis the point divides over, and therefore
@@ -562,21 +577,7 @@ export function solveForTarget(
       }
       return { oxide, molesPerRow, enteredMoles };
     })
-    .filter((hold) => hold.enteredMoles > 0)
-    .filter((hold) => {
-      // A hold a pinned addition already enforces verbatim — the sole boron
-      // source, clamped on its dominant B₂O₃ — would repeat that pin's row
-      // exactly and throw the fit off its rows+1 shape. The pin is the stronger
-      // statement, so the hold drops out; the value stays clamped through it.
-      const carriers = [...hold.molesPerRow].filter(([, moles]) => moles > 0);
-      if (carriers.length !== 1) return true;
-      const [rowIndex] = carriers[0]!;
-      const row = rows[rowIndex];
-      if (row?.kind !== 'additional' || !clampAdditions || row.amount <= 0) return true;
-      const material = materials.get(row.materialId);
-      const dominant = material ? chemistryOf(material).dominant : null;
-      return !(dominant && dominant.oxide === hold.oxide);
-    });
+    .filter((hold) => hold.enteredMoles > 0);
 
   // Movers: the usual three seats, plus one per hold — a hold is a row over
   // amounts the fit already has, so it needs a mover of its own. Two bounds
@@ -593,22 +594,22 @@ export function solveForTarget(
   const moving = chooseCarriers(carry(pool, rows, target), startR2o, startRo, seats, holdOf);
   if (!moving) return { ok: false, reason: target.second.empty };
 
-  // A clamped addition keeps the unity value of its dominant oxide — the figure
-  // a formula actually reads — while its own parts are solved for, so the
-  // addition follows the base instead of its recipe percentage being held.
-  const pinned: { carried: Carry; molesPerPart: number; unityValue: number }[] = [];
-  if (clampAdditions) {
+  // A pinned addition holds its whole material — either the number the recipe
+  // shows or the share of the flux it contributes — so the drag rewrites only
+  // the base and the addition follows under the equation written below.
+  const enteredMainTotal = rows.reduce(
+    (sum, row) => (row.kind === 'main' ? sum + row.amount : sum),
+    0,
+  );
+  const pinned: { carried: Carry; share: number; fluxShare: number }[] = [];
+  if (additionClamp !== 'free' && enteredMainTotal > 0) {
     for (const carried of display) {
       const row = rows[carried.rowIndex];
       if (row?.kind !== 'additional' || row.amount <= 0) continue;
-      const material = materials.get(row.materialId);
-      const held = material ? chemistryOf(material).dominant : null;
-      // Nothing to hold: the row stays a constant at its entered amount.
-      if (!held) continue;
       pinned.push({
         carried,
-        molesPerPart: held.moles,
-        unityValue: (row.amount * held.moles) / displayFlux,
+        share: row.amount / enteredMainTotal,
+        fluxShare: row.amount / displayFlux,
       });
     }
   }
@@ -646,16 +647,35 @@ export function solveForTarget(
       rhs: Y * constSecondPer - constSecondOf,
     },
   ];
-  // One row per pinned addition: its dominant oxide's moles per part less its
-  // share of the batch flux, so `c_o · amount − unityValue · F = 0` holds.
+  // One row per pinned addition. Held by amount, `amount = share · (Σ main
+  // amounts)`: the amount rides the base total — the basis the write-back
+  // normalizes to 100 — so the number the recipe shows survives the drag.
+  // Held by unity, `amount = fluxShare · F`: the addition keeps its share of the
+  // displayed flux, so every oxide it brings holds its unity value and its
+  // amount follows the batch instead. Holding the dominant oxide's unity value
+  // alone cancels to that same equation.
+  let constMainTotal = 0;
+  rows.forEach((row, rowIndex) => {
+    if (row.kind === 'main' && !unknownIndex.has(rowIndex)) constMainTotal += row.amount;
+  });
   for (const add of pinned) {
-    equations.push({
-      coefficients: unknowns.map((u) => {
-        const own = u.rowIndex === add.carried.rowIndex ? add.molesPerPart : 0;
-        return own - add.unityValue * u.coefficients.flux;
-      }),
-      rhs: add.unityValue * constFlux,
-    });
+    equations.push(
+      additionClamp === 'unity'
+        ? {
+            coefficients: unknowns.map(
+              (u) =>
+                (u.rowIndex === add.carried.rowIndex ? 1 : 0) - add.fluxShare * u.coefficients.flux,
+            ),
+            rhs: add.fluxShare * constFlux,
+          }
+        : {
+            coefficients: unknowns.map((u) => {
+              const own = u.rowIndex === add.carried.rowIndex ? 1 : 0;
+              return own - (rows[u.rowIndex]?.kind === 'main' ? add.share : 0);
+            }),
+            rhs: add.share * constMainTotal,
+          },
+    );
   }
 
   // Each hold weighs on amounts that are unknowns already; the movers that pay
@@ -712,11 +732,14 @@ export function solveForTarget(
   });
   if (lo > hi) return { ok: false, reason: 'negative-amount' };
 
-  // Spend the family's freedom on the R₂O:RO balance. R(t) = (N0 + t·N1)/(D0 +
-  // t·D1) is a Möbius function of t, so the t that restores the entered ratio is
-  // closed form — clamped into the interval where every amount stays positive.
+  // Where the family's one free parameter goes is the flux ratio switch's
+  // business. Clamped, it restores the R₂O:RO balance: R(t) = (N0 + t·N1)/(D0 +
+  // t·D1) is a Möbius function of t, so that point is closed form — clamped into
+  // the interval where every amount stays positive. Unclamped, the ratio is free
+  // to move: take the point on the family closest to the entered amounts, so the
+  // drag rewrites the recipe as little as it can.
   let t = Math.min(Math.max(0, lo), hi);
-  if (family.hasFamily && startRo > 0) {
+  if (family.hasFamily && clampFluxRatio && startRo > 0) {
     const atZero = ratioAt(amountsAt(0));
     const perT = ratioAt(
       rows.map((_, rowIndex) => family.direction[unknownIndex.get(rowIndex) ?? -1] ?? 0),
@@ -724,6 +747,39 @@ export function solveForTarget(
     const slope = perT.n - baseRatio * perT.d;
     if (Math.abs(slope) > DETERMINANT_EPSILON) {
       t = Math.min(Math.max((baseRatio * atZero.d - atZero.n) / slope, lo), hi);
+    }
+  } else if (family.hasFamily) {
+    // Without the clamp the ratio is free to move, and the freedom goes where
+    // the written recipe changes least: of the family's points, the one whose
+    // base shares sit closest to the entered ones. The write-back normalizes
+    // the base to 100, so the distance is measured there — X(t)/B(t) against the
+    // entered shares, with X(t) = p + t·q and B = c + t·d the base total along
+    // the family. The apparent nonlinearity closes:
+    //   d/dt Σ (X/B − E)² = 0   ⇔   cross + t · curvature = 0
+    // where the coefficients below are free of t. Only the base's own shares are
+    // measured, so the pinned additions take no part; a fold, or a target the
+    // family only grazes, lands on the interval's end.
+    let baseZero = constMainTotal;
+    let baseSlope = 0;
+    unknowns.forEach((unknown, index) => {
+      if (rows[unknown.rowIndex]?.kind !== 'main') return;
+      baseZero += family.particular[index] ?? 0;
+      baseSlope += family.direction[index] ?? 0;
+    });
+    let cross = 0;
+    let curvature = 0;
+    unknowns.forEach((unknown, index) => {
+      const row = rows[unknown.rowIndex];
+      if (row?.kind !== 'main') return;
+      const p = family.particular[index] ?? 0;
+      const q = family.direction[index] ?? 0;
+      const share = row.amount / enteredMainTotal;
+      const h = q * baseZero - p * baseSlope;
+      cross += (p - share * baseZero) * h;
+      curvature += (q - share * baseSlope) * h;
+    });
+    if (Math.abs(curvature) > DETERMINANT_EPSILON) {
+      t = Math.min(Math.max(-cross / curvature, lo), hi);
     }
   }
 
@@ -768,8 +824,8 @@ export function solveForTarget(
 
   // Write-back: the displayed chemistry — base and additions alike — is scaled
   // so the base reads exactly 100. Every ratio survives that scaling, so the
-  // point lands on the target and each clamped addition keeps its dominant
-  // oxide's unity value while its own parts follow the base. A row outside the
+  // point lands on the target and each pinned addition holds what its pin held —
+  // its share of the base, or of the flux. A row outside the
   // displayed chemistry (an addition the UMF switch excludes) is left alone.
   const displayed = new Set(display.map((carried) => carried.rowIndex));
   const raw = rows.map((row, rowIndex) => {
@@ -830,6 +886,38 @@ export function solveForTarget(
     r2oRoDrift: startRo > 0 && baseRatio > 0 ? solvedRatio / baseRatio : 1,
     emptied,
   };
+}
+
+/** A single solve, as the drags run it — and one console line when the debug
+ *  flag is on: the target, the switches, the verdict and the rows either side.
+ *  A zone scan passes a per-scan chemistry cache and solves hundreds of cells;
+ *  those stay quiet, and the scan logs one line of its own. */
+export function solveForTarget(
+  rows: RecipeRow[],
+  materials: Map<string, Material>,
+  target: SolveTarget,
+  options: SolveOptions = {},
+): SolveResult {
+  const result = solveTarget(rows, materials, target, options);
+  if (!options.chemistry) {
+    const detail: Record<string, unknown> = {
+      target: { x: target.x, y: target.y },
+      switches: {
+        inUmf: options.includeAdditions === true,
+        additions: options.additionClamp ?? 'amount',
+        fluxRatio: options.clampFluxRatio === true,
+        boron: options.clampBoron === true,
+      },
+      verdict: result.ok ? 'landed' : `refused: ${result.reason}`,
+      rows: `${debugRows(rows)} → ${result.ok ? debugRows(result.rows) : 'unchanged'}`,
+    };
+    if (result.ok) {
+      detail.drift = Number(result.r2oRoDrift.toFixed(6));
+      detail.emptied = result.emptied;
+    }
+    debugLog('solve', detail);
+  }
+  return result;
 }
 
 /** The Stull map's drag: the point is `(SiO₂, Al₂O₃)` over the typed flux. */
