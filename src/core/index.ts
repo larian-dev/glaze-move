@@ -23,7 +23,6 @@ export {
   type MoleCoefficients,
 } from './geometry';
 export {
-  solveForBoronTarget,
   solveForStullTarget,
   solveForTarget,
   triaxialAxes,
@@ -42,13 +41,10 @@ export {
   type Point,
 } from './hull';
 export {
-  aluminaRole,
   costPerKg,
   cte,
   firingTemperatureK,
-  kForCelsius,
   loiPercent,
-  meltabilityCoefficients,
   meltabilityK,
   siAlRatio,
   type FiringTemperature,

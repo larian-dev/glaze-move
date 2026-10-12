@@ -1,14 +1,10 @@
 import type { Material, RecipeRow } from '../types';
-import { OXIDE_BY_FORMULA } from '../data/catalog';
-import { batchMassPercent, batchMoles, chemistryRows } from './batch';
 import {
   materialChemistry,
   oxideMolesPerPart,
   type MaterialChemistry,
   type MoleCoefficients,
 } from './geometry';
-import { aluminaRole, firingTemperatureK, kForCelsius, meltabilityCoefficients, meltabilityK } from './ratios';
-import { unityFormula } from './umf';
 
 export type SolveRejection =
   | 'too-few-rows'
@@ -18,8 +14,6 @@ export type SolveRejection =
   | 'negative-amount'
   | 'no-flux-total'
   | 'flux-ratio'
-  | 'no-temperature-carrier'
-  | 'temperature-drift'
   | 'over-constrained';
 
 export type SolveResult =
@@ -43,11 +37,6 @@ export type SolveOptions = {
    *  recipe that cannot afford one is refused as over-constrained. A batch
    *  without B₂O₃ has nothing to hold and the clamp drops out. */
   clampBoron?: boolean;
-  /** Seat the fewest movers the target needs — the two coordinate rows — instead
-   *  of the usual three. Nothing is left over to spend on the R₂O:RO balance, so
-   *  the ratio drifts (or, with `clampFluxRatio`, most targets are refused); what
-   *  it buys is the smallest diff: at most two materials change. */
-  leastChange?: boolean;
   /** Per-material chemistry shared across many solves. A zone scan samples
    *  hundreds of targets over the same recipe, so `hull` derives each
    *  material's coefficients once and passes the map in; a bare call derives
@@ -59,15 +48,12 @@ export type SolveOptions = {
 const DETERMINANT_EPSILON = 1e-9;
 /** Pivot guard for the linear solve: below this the elimination is unstable. */
 const PIVOT_EPSILON = 1e-12;
-/** A boron-map temperature target has to come back within this many degrees. */
-const TEMPERATURE_TOLERANCE = 1;
 
 /**
  * One chart coordinate: `value = Σ amount·of / Σ amount·per`, with both sides
  * linear in the row amounts — the shape every draggable axis has to have. The
  * Stull map reads (SiO₂, Al₂O₃) over the typed flux; the triaxial map reads the
- * same two over the triangle's three corners; the boron map reads unity B₂O₃
- * over the flux and the meltability ratio K over its own weighted sums.
+ * same two over the triangle's three corners.
  */
 export type SolveAxis = {
   of: (chemistry: MaterialChemistry) => number;
@@ -112,16 +98,6 @@ export function triaxialAxes(roFlux: string): { first: SolveAxis; second: SolveA
   return {
     first: { of: (chemistry) => chemistry.coefficients.silica, per: basis, empty: 'no-flux' },
     second: { of: (chemistry) => chemistry.coefficients.alumina, per: basis, empty: 'no-alumina-carrier' },
-  };
-}
-
-/** The boron map's temperature axis: K, the meltability ratio, whose per-part
- *  weights come from the same coefficients `meltabilityK` applies to the batch. */
-function meltabilityAxis(role: 'flux' | 'refractory'): SolveAxis {
-  return {
-    of: (chemistry) => meltabilityCoefficients(chemistry.profile, OXIDE_BY_FORMULA, role).a,
-    per: (chemistry) => meltabilityCoefficients(chemistry.profile, OXIDE_BY_FORMULA, role).b,
-    empty: 'no-temperature-carrier',
   };
 }
 
@@ -212,26 +188,29 @@ function sameProfile(a: number[], b: number[]): boolean {
 
 /**
  * Seats the rows the fit will move: the strongest carrier of each target
- * coordinate, then `count - 2` more by how hard they swing the R₂O:RO balance.
- * The axes name their own carriers — the Stull and triaxial maps seat the most
- * concentrated SiO₂ source and the most concentrated Al₂O₃ source of the rest,
- * the boron map the richest B₂O₃ source and the row that moves K hardest. The
- * seats go by per-part concentration, not by total carry: a drag needs decoupled
- * control, and only a pure source moves one axis without dragging the others
- * along — a large dilute row out-carries the pure one by sheer amount, freezes
- * it, and leaves the fit trying to steer x by destroying flux, which collapses
- * the reachable set to a strip and hands the family a near-singular direction.
- * The seats past the second buy degrees of freedom for holds — each hold is a
- * row over amounts the fit already has, so it needs a mover of its own. A row
- * whose chemistry is a copy of one already seated is skipped: a duplicate
- * column cannot be solved for and would only make the fit singular. Returns
- * null when no row can carry the second coordinate.
+ * coordinate, then the rest of `count` by how hard they swing the R₂O:RO
+ * balance. The axes name their own carriers — the Stull and triaxial maps seat
+ * the most concentrated SiO₂ source and the most concentrated Al₂O₃ source of
+ * the rest. The seats go by per-part concentration, not by total carry: a drag
+ * needs decoupled control, and only a pure source moves one axis without
+ * dragging the others along — a large dilute row out-carries the pure one by
+ * sheer amount, freezes it, and leaves the fit trying to steer x by destroying
+ * flux, which collapses the reachable set to a strip and hands the family a
+ * near-singular direction.
+ * The seats past the axes pay for the holds — each hold is a row over amounts
+ * the fit already has, so it needs a mover of its own, and that mover is the
+ * strongest carrier of the oxide being held: a hold steered by a row that
+ * carries none of it could never be met. A row whose chemistry is a copy of one
+ * already seated is skipped: a duplicate column cannot be solved for and would
+ * only make the fit singular. Returns null when no row can carry the second
+ * coordinate of a two-axis target.
  */
 function chooseCarriers(
   parts: Carry[],
   totalR2o: number,
   totalRo: number,
   count: number,
+  holdOf: ((carried: Carry) => number)[],
 ): Carry[] | null {
   const chosen: Carry[] = [];
   const profiles: number[][] = [];
@@ -250,6 +229,21 @@ function chooseCarriers(
     );
   if (!second) return null;
   seat(second);
+
+  // One seat per hold: the strongest carrier of the oxide it holds, so the hold
+  // has a row that can actually move it. A row already seated for another
+  // coordinate needs no second seat — it moves this one too. The fit's own seat
+  // count bounds these: a cap that leaves no room for a hold leaves the hold
+  // unseated, and the equation count then refuses the drag as over-constrained.
+  for (const score of holdOf) {
+    if (chosen.length >= count) break;
+    const best = parts
+      .filter((c) => !chosen.includes(c) && score(c) > 0)
+      .reduce<Carry | undefined>((best, c) => (!best || score(c) > score(best) ? c : best), undefined);
+    if (!best) continue;
+    if (profiles.some((profile) => sameProfile(profile, profileOf(best.coefficients)))) continue;
+    seat(best);
+  }
 
   while (chosen.length < count) {
     let next: Carry | null = null;
@@ -480,9 +474,8 @@ function solveFit(equations: SolveEquation[], unknownCount: number): FitFamily |
  * carriers exactly, then spending the remaining freedom on the R₂O:RO balance.
  * Every draggable map shares this body: `target` names the two coordinate axes
  * and the values wanted. The Stull map reads (SiO₂, Al₂O₃) over the typed flux,
- * the triaxial map the same two over the triangle's corners, and the boron map
- * unity B₂O₃ against the meltability ratio K — see `solveForStullTarget`,
- * `triaxialAxes` and `solveForBoronTarget`.
+ * the triaxial map the same two over the triangle's corners — see
+ * `solveForStullTarget` and `triaxialAxes`.
  *
  * Two hard constraints and three free carriers leave a one-parameter family of
  * exact solutions, x(t) = p + t·q. The ratio is R(t) = (N0 + t·N1)/(D0 + t·D1),
@@ -490,8 +483,8 @@ function solveFit(equations: SolveEquation[], unknownCount: number): FitFamily |
  * form; non-negative amounts bound t to an interval, and the best we can do is
  * that point clamped to the interval.
  *
- * With only two carriers there is no such family and the ratio drifts — which
- * is why a quartz-led base (a flux-free silica source) holds steady while a
+ * With only two carriers there is no such family and the ratio drifts — which is
+ * why a quartz-led base (a flux-free silica source) holds steady while a
  * nepheline-led one does not. A base of two rows is then only draggable along
  * the curve its materials can reach, at best.
  *
@@ -523,7 +516,6 @@ export function solveForTarget(
     clampFluxRatio = false,
     clampAdditions = true,
     clampBoron = false,
-    leastChange = false,
   } = options;
   // One chemistry derivation per material per scan: `hull` passes a cache in so
   // the sampled targets reuse it; a bare call derives as it goes.
@@ -554,10 +546,10 @@ export function solveForTarget(
   const startRo = display.reduce((sum, c) => sum + c.ro, 0);
   const baseRatio = startRo > 0 ? startR2o / startRo : 0;
 
-  // The boron clamp is a hold: one row over the displayed chemistry that keeps
-  // the batch's unity B₂O₃ where it entered. Like any hold it weighs on amounts
-  // the fit already has, so it buys no unknown and must be given a mover of its
-  // own — and with no B₂O₃ in the batch it holds nothing and drops out.
+  // The boron clamp is a hold: a row over the displayed chemistry that keeps the
+  // batch's unity B₂O₃ where it entered. Like any hold it weighs on amounts the
+  // fit already has, so it buys no unknown and must be given a mover of its own —
+  // and with no B₂O₃ in the batch it holds nothing and drops out.
   const holds = (clampBoron ? ['B2O3'] : [])
     .map((oxide) => {
       const molesPerRow = new Map<number, number>();
@@ -596,8 +588,9 @@ export function solveForTarget(
     (carried) =>
       carried.firstOf > 0 || carried.firstPer > 0 || carried.secondOf > 0 || carried.secondPer > 0,
   ).length;
-  const seats = Math.min((leastChange ? 2 : 3) + holds.length, Math.max(2, usable - 1));
-  const moving = chooseCarriers(carry(pool, rows, target), startR2o, startRo, seats);
+  const seats = Math.min(3 + holds.length, Math.max(2, usable - 1));
+  const holdOf = holds.map((hold) => (carried: Carry): number => hold.molesPerRow.get(carried.rowIndex) ?? 0);
+  const moving = chooseCarriers(carry(pool, rows, target), startR2o, startRo, seats, holdOf);
   if (!moving) return { ok: false, reason: target.second.empty };
 
   // A clamped addition keeps the unity value of its dominant oxide — the figure
@@ -847,56 +840,4 @@ export function solveForStullTarget(
   options: SolveOptions = {},
 ): SolveResult {
   return solveForTarget(rows, materials, { ...STULL_AXES, x: target.x, y: target.y }, options);
-}
-
-/**
- * The boron map's drag: unity B₂O₃ against the calculated firing temperature.
- * The y axis is the meltability ratio K, and K's own per-part weights depend on
- * the branch the recipe sits on — the Al₂O₃ step at 3 mass % and the oxides
- * with no meltability data. So the branch is frozen where the drag started, the
- * fit runs `leastChange` (at most two materials move), and the written recipe is
- * measured again: a fit that landed on the other side of the step, or under a
- * different skip set, is refused rather than left reading the wrong cone.
- */
-export function solveForBoronTarget(
-  rows: RecipeRow[],
-  materials: Map<string, Material>,
-  target: { b2o3: number; celsius: number },
-  options: SolveOptions = {},
-): SolveResult {
-  const includeAdditions = options.includeAdditions ?? false;
-  const k = kForCelsius(target.celsius);
-  if (k === null) return { ok: false, reason: 'temperature-drift' };
-  const role = aluminaRole(batchMassPercent(chemistryRows(rows, includeAdditions), materials));
-
-  const solved = solveForTarget(
-    rows,
-    materials,
-    {
-      first: {
-        of: (chemistry) => oxideMolesPerPart(chemistry.profile, 'B2O3'),
-        per: (chemistry) => chemistry.coefficients.flux,
-        empty: 'no-flux',
-      },
-      second: meltabilityAxis(role),
-      x: target.b2o3,
-      y: k,
-    },
-    { ...options, leastChange: true },
-  );
-  if (!solved.ok) return solved;
-
-  // Measure what was written, not what was fitted: the write-back rounds the
-  // amounts to cents, and the temperature map is piecewise and branchy.
-  const written = chemistryRows(solved.rows, includeAdditions);
-  const melt = meltabilityK(batchMassPercent(written, materials), OXIDE_BY_FORMULA);
-  const celsius = firingTemperatureK(melt.k, melt.approximate).celsius;
-  if (celsius === null || Math.abs(celsius - target.celsius) > TEMPERATURE_TOLERANCE) {
-    return { ok: false, reason: 'temperature-drift' };
-  }
-  const umf = unityFormula(batchMoles(written, materials, OXIDE_BY_FORMULA), OXIDE_BY_FORMULA);
-  if (Math.abs((umf.values.get('B2O3') ?? 0) - target.b2o3) > 1e-3) {
-    return { ok: false, reason: 'temperature-drift' };
-  }
-  return solved;
 }

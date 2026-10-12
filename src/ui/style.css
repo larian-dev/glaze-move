@@ -90,8 +90,9 @@ h3 {
 }
 
 /* Recipe and transfer on the left, unity formula and history in a narrow middle
-   column, and the three charts down the right. The chart column is the flexible
-   one: the Stull map is 750px wide and only loses detail once squeezed below it. */
+   column, and the three charts down the right — one tab of them at a time. The
+   chart column is the flexible one: the Stull map is 750px wide and only loses
+   detail once squeezed below it. */
 .layout {
   display: grid;
   grid-template-columns: minmax(300px, 360px) minmax(240px, 320px) minmax(0, 1fr);
@@ -135,6 +136,44 @@ h3 {
 .panel-tools {
   display: flex;
   gap: 8px;
+}
+
+/* The three maps share one panel; the strip above them decides which is live.
+   The active tab borrows the panel's surface and covers the rule below it, so
+   it reads as attached to the view under it. */
+.chart-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.chart-tab {
+  font: inherit;
+  margin-bottom: -1px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.chart-tab:hover {
+  color: var(--ink);
+}
+
+.chart-tab[aria-selected='true'] {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+/* Stated outright, so a later display rule on the view cannot un-hide it. */
+.chart-view[hidden] {
+  display: none;
 }
 
 /* Compact chip row: the triaxial corner picker. */

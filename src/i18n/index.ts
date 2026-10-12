@@ -42,6 +42,8 @@ const en = {
   'results.unityUndefined': 'The unity formula is undefined — the recipe has no flux.',
   'results.group.other': 'Other',
 
+  'charts.label': 'Charts',
+
   'stull.title': 'Stull map',
   'stull.axisX': 'SiO₂ (0–9)',
   'stull.axisY': 'Al₂O₃ (0–1)',
@@ -58,9 +60,6 @@ const en = {
   'stull.snapback.negative-amount': 'The target would need a negative amount.',
   'stull.snapback.no-flux-total': 'The refit would leave no flux.',
   'stull.snapback.flux-ratio': 'The R₂O:RO ratio cannot be held at this target.',
-  'stull.snapback.no-temperature-carrier': 'No material can carry the firing temperature.',
-  'stull.snapback.temperature-drift':
-    'The firing estimate jumps at the Al₂O₃ 3 % step there — the drag was refused.',
   'stull.snapback.over-constrained': 'Too many values are clamped for this target — release one.',
 
   'triaxial.title': 'Triaxial map',
@@ -68,14 +67,14 @@ const en = {
   'triaxial.noRoFlux': 'No RO flux in this recipe — add CaO, MgO or another RO to place the point.',
   'triaxial.aria': 'Triaxial chart of the full batch against the selected RO flux.',
   'triaxial.hint':
-    'Drag the point, or focus the map and use the arrow keys — Ctrl snaps to the 0.01 grid. Scroll to zoom, shift-drag to pan, double-click to step in; focused, + / − zoom and 0 resets. Escape cancels.',
+    'Drag the point, or focus the map and use the arrow keys — Ctrl snaps to the 0.01 grid. Escape cancels.',
 
   'boron.title': 'Boron map',
   'boron.axisX': 'B₂O₃ (0–0.5)',
   'boron.axisY': 'Firing temperature (°C)',
   'boron.aria': 'Boron chart: unity B₂O₃ of the batch against the calculated firing temperature.',
   'boron.hint':
-    'Drag the point, or focus the map and use the arrow keys — Ctrl snaps to the grid. The fit moves as few materials as it can; Escape cancels.',
+    'The map reads the batch: unity B₂O₃ against the calculated firing temperature. Nothing here is draggable — add or drop a boron source to move the point.',
   'boron.readout': 'B₂O₃ {boron} · {temp} °C',
   'boron.noBoron': 'No B₂O₃ in this recipe — add a frit or a boron frit to place the point.',
   'boron.noFiring': 'No firing temperature to plot — the recipe has no meltability estimate.',
@@ -179,6 +178,8 @@ const ru: Record<keyof typeof en, string> = {
   'results.unityUndefined': 'Формула Зегера не определена — в рецепте нет флюсов.',
   'results.group.other': 'Прочие',
 
+  'charts.label': 'Диаграммы',
+
   'stull.title': 'График Сталла',
   'stull.axisX': 'SiO₂ (0–9)',
   'stull.axisY': 'Al₂O₃ (0–1)',
@@ -195,8 +196,6 @@ const ru: Record<keyof typeof en, string> = {
   'stull.snapback.negative-amount': 'Для этой цели потребовалось бы отрицательное количество.',
   'stull.snapback.no-flux-total': 'После пересчёта в рецепте не осталось бы флюсов.',
   'stull.snapback.flux-ratio': 'На этой цели невозможно удержать соотношение R₂O:RO.',
-  'stull.snapback.no-temperature-carrier': 'Ни один материал не может сдвинуть температуру обжига.',
-  'stull.snapback.temperature-drift': 'У порога 3 % Al₂O₃ оценка скачет — перенос отменён.',
   'stull.snapback.over-constrained': 'Для этой цели зафиксировано слишком много значений — отпустите одно.',
 
   'triaxial.title': 'Троичная диаграмма',
@@ -204,14 +203,14 @@ const ru: Record<keyof typeof en, string> = {
   'triaxial.noRoFlux': 'В рецепте нет флюса RO — добавьте CaO, MgO или другой RO, чтобы поставить точку.',
   'triaxial.aria': 'Троичная диаграмма полного состава по выбранному флюсу RO.',
   'triaxial.hint':
-    'Перетащите точку или установьте фокус на диаграмме и используйте стрелки — Ctrl притягивает к сетке 0,01. Колесо — масштаб, Shift-перетаскивание — панорама, двойной щелчок — приблизить; в фокусе + / − масштаб, 0 — сброс. Escape — отмена.',
+    'Перетащите точку или установьте фокус на диаграмме и используйте стрелки — Ctrl притягивает к сетке 0,01. Escape — отмена.',
 
   'boron.title': 'График по бору',
   'boron.axisX': 'B₂O₃ (0–0,5)',
   'boron.axisY': 'Температура обжига (°C)',
   'boron.aria': 'График по бору: B₂O₃ в Зегере против расчётной температуры обжига.',
   'boron.hint':
-    'Перетащите точку или установьте фокус на диаграмме и используйте стрелки — Ctrl притягивает к сетке. Решатель меняет как можно меньше материалов; Escape — отмена.',
+    'Карта читает рецепт: B₂O₃ в Зегере против расчётной температуры обжига. Перетаскивать здесь нечего — чтобы сдвинуть точку, добавьте или уберите источник бора.',
   'boron.readout': 'B₂O₃ {boron} · {temp} °C',
   'boron.noBoron': 'В рецепте нет B₂O₃ — добавьте фритту, чтобы поставить точку.',
   'boron.noFiring': 'Нет температуры обжига — для рецепта нет оценки расплавляемости.',

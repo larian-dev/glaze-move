@@ -1,7 +1,5 @@
 import { createD3Adapter } from '../charts/adapter-d3';
 import type {
-  BoronInteraction,
-  BoronTarget,
   ChartAdapter,
   StullInteraction,
   TriaxialInteraction,
@@ -28,7 +26,6 @@ import {
   moleCoefficients,
   molePercent,
   siAlRatio,
-  solveForBoronTarget,
   solveForStullTarget,
   solveForTarget,
   stullPoint,
@@ -248,12 +245,10 @@ export function renderCalculatorPage(
   const resultsHost = el('div', { class: 'panel panel--results' });
   const historyHost = el('div', { class: 'panel panel--history' });
 
-  const stullTitle = el('h2', { class: 'panel-title' });
   const stullHint = el('p', { class: 'panel-hint' });
   const stullChart = el('div', { class: 'chart chart--stull' });
   const stullNotice = el('p', { class: 'notice', attrs: { role: 'status', 'aria-live': 'polite' } });
 
-  const triaxialTitle = el('h2', { class: 'panel-title' });
   const roTools = el('div', {
     class: 'ro-toggle',
     attrs: { role: 'group', 'aria-label': t(lang, 'triaxial.roFlux') },
@@ -262,7 +257,6 @@ export function renderCalculatorPage(
   const triaxialChart = el('div', { class: 'chart chart--triaxial' });
   const triaxialNotice = el('p', { class: 'notice', attrs: { role: 'status', 'aria-live': 'polite' } });
 
-  const boronTitle = el('h2', { class: 'panel-title' });
   const boronHint = el('p', { class: 'panel-hint' });
   const boronChart = el('div', { class: 'chart chart--boron' });
   const boronStatus = el('p', { class: 'panel-status', attrs: { role: 'status', 'aria-live': 'polite' } });
@@ -312,27 +306,109 @@ export function renderCalculatorPage(
     t(lang, 'stull.clampBoron'),
     (value) => state.set({ clampBoron: value }),
   );
-  const stullPanel = el('div', { class: 'panel panel--stull' }, [
-    el('div', { class: 'panel-head' }, [stullTitle, clampSwitch, clampAdditionsSwitch, clampBoronSwitch]),
-    stullHint,
-    stullChart,
-    stullNotice,
+  // One panel, three maps: the tab labels are the charts' names, and each view
+  // keeps its own tools, hint and notice. Only the active view is in the
+  // document flow, so a drag can never land on a hidden map.
+  const tabKeys = ['stull', 'triaxial', 'boron'] as const;
+  type ChartTabKey = (typeof tabKeys)[number];
+  const tabLabel: Record<ChartTabKey, TranslationKey> = {
+    stull: 'stull.title',
+    triaxial: 'triaxial.title',
+    boron: 'boron.title',
+  };
+  const tabButtons: Record<ChartTabKey, HTMLButtonElement> = {
+    stull: el('button', {
+      type: 'button',
+      class: 'chart-tab',
+      attrs: { role: 'tab', id: 'chart-tab-stull', 'aria-controls': 'chart-view-stull' },
+    }),
+    triaxial: el('button', {
+      type: 'button',
+      class: 'chart-tab',
+      attrs: { role: 'tab', id: 'chart-tab-triaxial', 'aria-controls': 'chart-view-triaxial' },
+    }),
+    boron: el('button', {
+      type: 'button',
+      class: 'chart-tab',
+      attrs: { role: 'tab', id: 'chart-tab-boron', 'aria-controls': 'chart-view-boron' },
+    }),
+  };
+  const chartTabs = el(
+    'div',
+    { class: 'chart-tabs', attrs: { role: 'tablist', 'aria-label': t(lang, 'charts.label') } },
+    tabKeys.map((key) => tabButtons[key]),
+  );
+
+  const chartViews: Record<ChartTabKey, HTMLElement> = {
+    stull: el(
+      'div',
+      {
+        class: 'chart-view',
+        attrs: { role: 'tabpanel', id: 'chart-view-stull', 'aria-labelledby': 'chart-tab-stull' },
+      },
+      [
+        el('div', { class: 'panel-head' }, [clampSwitch, clampAdditionsSwitch, clampBoronSwitch]),
+        stullHint,
+        stullChart,
+        stullNotice,
+      ],
+    ),
+    triaxial: el(
+      'div',
+      {
+        class: 'chart-view',
+        attrs: { role: 'tabpanel', id: 'chart-view-triaxial', 'aria-labelledby': 'chart-tab-triaxial' },
+      },
+      [
+        el('div', { class: 'panel-head' }, [roTools]),
+        triaxialHint,
+        triaxialNotice,
+        triaxialChart,
+      ],
+    ),
+    boron: el(
+      'div',
+      {
+        class: 'chart-view',
+        attrs: { role: 'tabpanel', id: 'chart-view-boron', 'aria-labelledby': 'chart-tab-boron' },
+      },
+      [boronHint, boronChart, boronStatus, boronNotice],
+    ),
+  };
+
+  const chartPanel = el('div', { class: 'panel panel--charts' }, [
+    chartTabs,
+    ...tabKeys.map((key) => chartViews[key]),
   ]);
 
-  const triaxialPanel = el('div', { class: 'panel panel--triaxial' }, [
-    el('div', { class: 'panel-head' }, [triaxialTitle, roTools]),
-    triaxialHint,
-    triaxialNotice,
-    triaxialChart,
-  ]);
-
-  const boronPanel = el('div', { class: 'panel panel--boron' }, [
-    el('div', { class: 'panel-head' }, [boronTitle]),
-    boronHint,
-    boronChart,
-    boronStatus,
-    boronNotice,
-  ]);
+  /** One map at a time. The roving tabindex keeps the strip a single tab stop,
+   *  and the arrow keys walk it the way a tablist is expected to. */
+  let activeChart: ChartTabKey = 'stull';
+  function showChart(key: ChartTabKey): void {
+    activeChart = key;
+    for (const other of tabKeys) {
+      const selected = other === key;
+      tabButtons[other].setAttribute('aria-selected', String(selected));
+      tabButtons[other].tabIndex = selected ? 0 : -1;
+      chartViews[other].hidden = !selected;
+    }
+  }
+  for (const key of tabKeys) {
+    tabButtons[key].addEventListener('click', () => showChart(key));
+  }
+  chartTabs.addEventListener('keydown', (event) => {
+    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+    const jump = event.key === 'Home' ? 0 : event.key === 'End' ? tabKeys.length - 1 : null;
+    if (step === 0 && jump === null) return;
+    event.preventDefault();
+    const index = tabKeys.indexOf(activeChart);
+    const next = jump ?? (index + step + tabKeys.length) % tabKeys.length;
+    const key = tabKeys[next];
+    if (!key) return;
+    showChart(key);
+    tabButtons[key].focus();
+  });
+  showChart('stull');
 
   const transferPanel = el('div', { class: 'panel panel--transfer' }, [
     transferTitle,
@@ -344,7 +420,7 @@ export function renderCalculatorPage(
     el('div', { class: 'layout' }, [
       el('div', { class: 'column column--recipe' }, [recipeHost, transferPanel]),
       el('div', { class: 'column column--results' }, [resultsHost, historyHost]),
-      el('div', { class: 'column column--charts' }, [stullPanel, triaxialPanel, boronPanel]),
+      el('div', { class: 'column column--charts' }, [chartPanel]),
     ]),
   );
   container.append(importDialog);
@@ -502,15 +578,10 @@ function paintRoTools(): void {
     history.record(state.get().rows);
   }
 
-  /** A refused triaxial or boron drag: say why, repaint the committed model. */
-  function rejectMapDrag(notice: string, which: 'triaxial' | 'boron'): void {
-    if (which === 'triaxial') {
-      setText(triaxialNotice, notice);
-      adapter?.updateTriaxial(computed.triaxial);
-      return;
-    }
-    setText(boronNotice, notice);
-    adapter?.updateBoron(computed.boron);
+  /** A refused triaxial drag: say why, repaint the committed model. */
+  function rejectTriaxialDrag(notice: string): void {
+    setText(triaxialNotice, notice);
+    adapter?.updateTriaxial(computed.triaxial);
   }
 
   function onStullTarget(target: Pt): void {
@@ -561,33 +632,11 @@ function paintRoTools(): void {
       },
     );
     if (!solved.ok) {
-      rejectMapDrag(t(snapshot.lang, snapbackKey(solved.reason)), 'triaxial');
+      rejectTriaxialDrag(t(snapshot.lang, snapbackKey(solved.reason)));
       return;
     }
     if (solved.emptied.length > 0) {
-      rejectMapDrag(emptiedNotice(snapshot, solved.emptied), 'triaxial');
-      return;
-    }
-    commitSolved(solved.rows);
-  }
-
-  /** The boron map's drag: unity B₂O₃ against the calculated firing temperature,
-   *  fitted with as few movers as the two axes allow — and refused, rather than
-   *  silently mistargeted, where the temperature estimate is discontinuous. */
-  function onBoronTarget(target: BoronTarget): void {
-    const snapshot = state.get();
-    setText(boronNotice, '');
-    const solved = solveForBoronTarget(snapshot.rows, materials, target, {
-      includeAdditions: snapshot.includeAdditions,
-      clampFluxRatio: snapshot.clampFluxRatio,
-      clampAdditions: snapshot.clampAdditions,
-    });
-    if (!solved.ok) {
-      rejectMapDrag(t(snapshot.lang, snapbackKey(solved.reason)), 'boron');
-      return;
-    }
-    if (solved.emptied.length > 0) {
-      rejectMapDrag(emptiedNotice(snapshot, solved.emptied), 'boron');
+      rejectTriaxialDrag(emptiedNotice(snapshot, solved.emptied));
       return;
     }
     commitSolved(solved.rows);
@@ -609,12 +658,7 @@ function paintRoTools(): void {
 
   const triaxialInteraction: TriaxialInteraction = {
     onTarget: onTriaxialTarget,
-    onCancel: () => rejectMapDrag('', 'triaxial'),
-  };
-
-  const boronInteraction: BoronInteraction = {
-    onTarget: onBoronTarget,
-    onCancel: () => rejectMapDrag('', 'boron'),
+    onCancel: () => rejectTriaxialDrag(''),
   };
 
   exportButton.addEventListener('click', () => exportToFile(persistable(state.get())));
@@ -656,7 +700,10 @@ function paintRoTools(): void {
   });
 
   function paintChrome(next: Lang): void {
-    setText(stullTitle, t(next, 'stull.title'));
+    // The tabs are the charts' headings now: one label per map, and no second
+    // copy of the name inside the view.
+    for (const key of tabKeys) setText(tabButtons[key], t(next, tabLabel[key]));
+    chartTabs.setAttribute('aria-label', t(next, 'charts.label'));
     setText(stullHint, t(next, 'stull.hint'));
     clampSwitch.setAttribute('aria-label', t(next, 'stull.clampFluxRatio'));
     const clampLabel = clampSwitch.querySelector('.recipe-toggle-label');
@@ -667,9 +714,7 @@ function paintRoTools(): void {
     clampBoronSwitch.setAttribute('aria-label', t(next, 'stull.clampBoron'));
     const boronLabel = clampBoronSwitch.querySelector('.recipe-toggle-label');
     if (boronLabel) setText(boronLabel, t(next, 'stull.clampBoron'));
-    setText(triaxialTitle, t(next, 'triaxial.title'));
     setText(triaxialHint, t(next, 'triaxial.hint'));
-    setText(boronTitle, t(next, 'boron.title'));
     setText(boronHint, t(next, 'boron.hint'));
     setText(transferTitle, t(next, 'transfer.title'));
 
@@ -720,7 +765,7 @@ function paintRoTools(): void {
   adapter = createD3Adapter();
   adapter.mountStull(stullChart, computed.stull, interaction);
   adapter.mountTriaxial(triaxialChart, computed.triaxial, triaxialInteraction);
-  adapter.mountBoron(boronChart, computed.boron, boronInteraction);
+  adapter.mountBoron(boronChart, computed.boron);
 
   return {
     setLang(next: Lang): void {

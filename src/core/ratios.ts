@@ -104,67 +104,6 @@ export function meltabilityK(
   return { k: numerator / denominator, approximate };
 }
 
-/** The side of the 3 mass % step the batch's Al₂O₃ sits on: below it alumina
- *  melts as a flux, above it as a refractory. The step makes K — and with it the
- *  firing temperature — discontinuous, so a solver must freeze the side it
- *  starts on and re-check where it landed. */
-export function aluminaRole(massPercent: Map<string, number>): 'flux' | 'refractory' {
-  return (massPercent.get('Al2O3') ?? 0) > ALUMINA_FLUX_LIMIT ? 'refractory' : 'flux';
-}
-
-/** Per-part meltability weights: `K = Σ amountⱼ·aⱼ / Σ amountⱼ·bⱼ` over the very
- *  coefficients `meltabilityK` applies to the batch — so with the alumina role
- *  frozen, a fixed K target is linear in the amounts. */
-export function meltabilityCoefficients(
-  profile: Map<string, number>,
-  oxides: OxideIndex,
-  role: 'flux' | 'refractory',
-): { a: number; b: number } {
-  let a = 0;
-  let b = 0;
-  for (const [formula, mass] of profile) {
-    const oxide = oxides.get(formula);
-    if (!oxide) continue;
-    const share = mass / 100;
-    if (formula === 'Al2O3') {
-      if (role === 'refractory') b += ALUMINA_REFRACTORY * share;
-      else a += ALUMINA_FLUX * share;
-      continue;
-    }
-    if (REFRACTORY_OXIDES.has(formula)) {
-      b += (oxide.meltability ?? 0) * share;
-      continue;
-    }
-    if (!oxide.meltability) continue;
-    a += oxide.meltability * share;
-  }
-  return { a, b };
-}
-
-/** Inverse of `firingTemperatureK`: the K a temperature target needs. Null
- *  outside the table, where the forward map clamps and several K share one
- *  round temperature. */
-export function kForCelsius(celsius: number): number | null {
-  const last = CELSIUS_TABLE.length - 1;
-  const hottest = CELSIUS_TABLE[0];
-  const coldest = CELSIUS_TABLE[last];
-  if (hottest === undefined || coldest === undefined) return null;
-  if (celsius < hottest || celsius > coldest) return null;
-  for (let i = 0; i < last; i += 1) {
-    const lowC = CELSIUS_TABLE[i];
-    const highC = CELSIUS_TABLE[i + 1];
-    const lowK = K_TABLE[i];
-    const highK = K_TABLE[i + 1];
-    if (lowC === undefined || highC === undefined || lowK === undefined || highK === undefined) {
-      continue;
-    }
-    if (celsius < lowC || celsius > highC) continue;
-    const t = (celsius - lowC) / (highC - lowC);
-    return lowK + t * (highK - lowK);
-  }
-  return null;
-}
-
 /** K → °C by linear interpolation of the reference table, clamped outside it. */
 export function firingTemperatureK(k: number | null, approximate = false): FiringTemperature {
   if (k === null || !Number.isFinite(k)) return { celsius: null, approximate };

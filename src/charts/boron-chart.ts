@@ -31,12 +31,6 @@ export const BORON_VIEWPORT: Viewport = {
 };
 
 export const BORON_TICK_STEP_X = 0.05;
-/** Ctrl + drag (or Ctrl + arrow) pulls the point onto this grid. */
-export const BORON_SNAP_X = 0.01;
-export const BORON_SNAP_Y = 5;
-/** Plain arrow steps; Ctrl walks the snap grid instead. */
-export const BORON_NUDGE_X = 0.02;
-export const BORON_NUDGE_Y = 20;
 
 /**
  * The y-axis points of the source chart, bottom first — the only y-axis labels
@@ -72,23 +66,6 @@ function coneFraction(celsius: number): number {
     }
   }
   return 1;
-}
-
-/** Inverse of `coneFraction`: the temperature a fraction of the plot height
- *  reads, interpolated between the published cone rows. */
-export function celsiusAtFraction(fraction: number): number {
-  const steps = BORON_CONE_AXIS.length - 1;
-  const bottom = BORON_CONE_AXIS[0];
-  const top = BORON_CONE_AXIS[steps];
-  if (!bottom || !top) return 0;
-  if (fraction <= 0) return bottom.celsius;
-  if (fraction >= 1) return top.celsius;
-  const scaled = fraction * steps;
-  const index = Math.min(steps - 1, Math.floor(scaled));
-  const low = BORON_CONE_AXIS[index];
-  const high = BORON_CONE_AXIS[index + 1];
-  if (!low || !high) return top.celsius;
-  return low.celsius + (scaled - index) * (high.celsius - low.celsius);
 }
 
 /** Screen y of a firing temperature inside the plot box — the cone-stepped

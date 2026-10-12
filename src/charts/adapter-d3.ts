@@ -1,9 +1,7 @@
 import { line } from 'd3-shape';
 import { select } from 'd3-selection';
-import { zoom, zoomIdentity, type Transform, type ZoomBehavior } from 'd3-zoom';
+import { zoom, type Transform, type ZoomBehavior } from 'd3-zoom';
 import type {
-  BoronInteraction,
-  BoronTarget,
   ChartAdapter,
   StullInteraction,
   TriaxialInteraction,
@@ -21,17 +19,8 @@ import {
   type Domain,
   type Label,
   type StullModel,
-  type Viewport,
 } from './stull-chart';
-import {
-  BORON_NUDGE_X,
-  BORON_NUDGE_Y,
-  BORON_SNAP_X,
-  BORON_SNAP_Y,
-  boronPlotY,
-  celsiusAtFraction,
-  type BoronModel,
-} from './boron-chart';
+import type { BoronModel } from './boron-chart';
 import { TRIAXIAL_NUDGE, TRIAXIAL_SNAP, type TriaxialModel } from './triaxial-chart';
 import { ternaryToXY, xyToTernary, type TernaryPoint } from './ternary';
 import type { Pt } from './stull-data';
@@ -46,12 +35,8 @@ const STULL_HATCH_ID = 'stull-hatch';
 const STULL_CLIP_ID = 'stull-plot-clip';
 /** Hatch id for the band of targets that would empty a component. */
 const STULL_EMPTY_HATCH_ID = 'stull-emptied-hatch';
-/** Clip id for the triaxial map: a magnified raster is cut at its frame too. */
-const TRIAXIAL_CLIP_ID = 'triaxial-map-clip';
-/** Radius of the triaxial point marker at 1×; counter-scaled while zoomed. */
+/** Radius of the triaxial point marker, in viewBox units. */
 const TRIAXIAL_POINT_RADIUS = 5;
-/** Wheel/keys zoom the triaxial map between these scales. */
-const TRIAXIAL_ZOOM_RANGE: readonly [number, number] = [1, 8];
 
 function svgEl(tag: string, attrs: Record<string, string | number> = {}): SVGElement {
   const node = document.createElementNS(SVG_NS, tag);
@@ -100,7 +85,7 @@ function straightPath(points: Pt[], close: boolean): string {
 
 /** The point marker: the only part of the Stull map repainted while dragging.
  *  `label` is the drag readout, parked at the marker's top-right. */
-function paintMarker(layer: SVGElement | null, target: Pt | null, label: string | null = null): void {
+function paintMarker(layer: SVGElement | null, target: Pt | null, label: string[] | null = null): void {
   if (!layer) return;
   layer.textContent = '';
   if (!target) return;
@@ -114,8 +99,9 @@ function paintMarker(layer: SVGElement | null, target: Pt | null, label: string 
 }
 
 /** A readout parked at a point's top-right: white on a dark halo, so it stays
- *  legible over the pale chart fields and the dark raster corners alike. */
-function readoutText(text: string, at: Pt, size = 11): SVGElement {
+ *  legible over the pale chart fields and the dark raster corners alike. One
+ *  line per entry, the first on top. */
+function readoutText(lines: string[], at: Pt, size = 11): SVGElement {
   const node = svgEl('text', {
     x: at.x + 10,
     y: at.y - 10,
@@ -127,14 +113,21 @@ function readoutText(text: string, at: Pt, size = 11): SVGElement {
     'stroke-linejoin': 'round',
     'paint-order': 'stroke',
   });
-  node.textContent = text;
+  lines.forEach((line, index) => {
+    const tspan = svgEl('tspan', { x: at.x + 10, dy: index === 0 ? 0 : size * 1.25 });
+    tspan.textContent = line;
+    node.appendChild(tspan);
+  });
   return node;
 }
 
-/** The ratio of two plotted coordinates, as the results panel writes it —
- *  `SiO₂:Al₂O₃ 10.48`; null when either side is degenerate. */
-function ratioReadout(axis: string, top: number, bottom: number): string | null {
-  return top > 0 && bottom > 0 ? `${axis} ${(top / bottom).toFixed(2)}` : null;
+/** The Stull marker's readout: the point's two coordinates, then their ratio —
+ *  the figure the results panel reports. A coordinate at zero leaves the ratio
+ *  undefined, and only the values are shown then. */
+function stullReadout(x: number, y: number): string[] {
+  const lines = [`SiO₂ ${x.toFixed(2)} · Al₂O₃ ${y.toFixed(2)}`];
+  if (x > 0 && y > 0) lines.push(`SiO₂:Al₂O₃ ${(x / y).toFixed(2)}`);
+  return lines;
 }
 
 function paintStull(model: StullModel, target: Pt | null, surface: SVGElement): SVGElement {
@@ -300,33 +293,18 @@ function paintStull(model: StullModel, target: Pt | null, surface: SVGElement): 
 export function createD3Adapter(): ChartAdapter {
   let triaxialHost: HTMLElement | null = null;
   /** The triaxial map keeps one SVG for the host's lifetime: a rebuild per
-   *  update would drop the zoom transform and cut a gesture in progress. */
+   *  update would cut a gesture in progress. */
   let triaxialSvg: SVGSVGElement | null = null;
-  let triaxialContent: SVGGElement | null = null;
   let triaxialImage: SVGElement | null = null;
   let triaxialEdge: SVGElement | null = null;
   let triaxialMarker: SVGElement | null = null;
   let triaxialLabels: SVGGElement | null = null;
   let triaxialModel: TriaxialModel | null = null;
-  /** Current zoom scale, so the marker can keep its apparent size. */
-  let triaxialScale = 1;
-  /** Live zoom transform of the triaxial content: screen ↔ content math. */
-  let triaxialTransform = { x: 0, y: 0, k: 1 };
-  /** The screen-space readout beside the triaxial marker. */
-  let triaxialReadout: SVGElement | null = null;
   let triaxialInteraction: TriaxialInteraction | null = null;
-  /** The readout text the current triaxial paint carries; null = none. */
-  let triaxialLabel: string | null = null;
   let triaxialDragging = false;
   let triaxialPointer: number | null = null;
   let boronHost: HTMLElement | null = null;
-  let boronInteraction: BoronInteraction | null = null;
-  let boronSvg: SVGSVGElement | null = null;
   let boronMarker: SVGElement | null = null;
-  let boronReadout: SVGElement | null = null;
-  let boronModel: BoronModel | null = null;
-  let boronDragging = false;
-  let boronPointer: number | null = null;
   let svg: SVGSVGElement | null = null;
   let surface: SVGElement | null = null;
   let committed: StullModel | null = null;
@@ -369,7 +347,7 @@ export function createD3Adapter(): ChartAdapter {
     const transform = createStullTransform(model.viewport, model.domain);
     const screen = target ? transform.toScreen(target) : null;
     const show = target !== null && (dragging || stullFocused());
-    paintMarker(markerLayer, screen, show ? ratioReadout('SiO₂:Al₂O₃', target.x, target.y) : null);
+    paintMarker(markerLayer, screen, show ? stullReadout(target.x, target.y) : null);
   };
 
   /** Repaints the last committed point: what a finished or cancelled drag falls
@@ -512,26 +490,14 @@ export function createD3Adapter(): ChartAdapter {
     capturedPointer = null;
   };
 
-  /** Paints the triaxial marker at a content-space point, with its readout in
-   *  the unscaled layer so the text keeps its size at every zoom. */
-  const paintTriaxialPoint = (point: Pt, label: string | null = null): void => {
+  /** Paints the triaxial marker at its screen point. The map carries no readout:
+   *  the shares it stands for are the triangle's own axes, drawn on the map. */
+  const paintTriaxialPoint = (point: Pt): void => {
     if (!triaxialMarker) return;
     triaxialMarker.setAttribute('visibility', 'visible');
     triaxialMarker.setAttribute('cx', String(point.x));
     triaxialMarker.setAttribute('cy', String(point.y));
-    triaxialMarker.setAttribute('r', String(TRIAXIAL_POINT_RADIUS / triaxialScale));
-    triaxialLabel = label;
-    if (!triaxialReadout) return;
-    triaxialReadout.textContent = '';
-    if (!label) return;
-    const t = triaxialTransform;
-    triaxialReadout.appendChild(
-      readoutText(label, { x: point.x * t.k + t.x, y: point.y * t.k + t.y }),
-    );
   };
-
-  const triaxialFocused = (): boolean =>
-    triaxialSvg !== null && document.activeElement === triaxialSvg;
 
   const triaxialTernary = (target: TriaxialTarget): TernaryPoint => ({
     a: target.sio2,
@@ -546,11 +512,7 @@ export function createD3Adapter(): ChartAdapter {
     if (!model || !root) return null;
     const rect = root.getBoundingClientRect();
     const view = clientToViewBox({ x: event.clientX, y: event.clientY }, rect, model.viewport);
-    const t = triaxialTransform;
-    const ternary = xyToTernary(
-      { x: (view.x - t.x) / t.k, y: (view.y - t.y) / t.k },
-      model.vertices,
-    );
+    const ternary = xyToTernary(view, model.vertices);
     const snap = event.ctrlKey || event.metaKey;
     return {
       sio2: snap ? snapTo(ternary.a, TRIAXIAL_SNAP) : ternary.a,
@@ -562,10 +524,7 @@ export function createD3Adapter(): ChartAdapter {
     const model = triaxialModel;
     const target = triaxialTargetAt(event);
     if (!model || !target) return;
-    paintTriaxialPoint(
-      ternaryToXY(triaxialTernary(target), model.vertices),
-      ratioReadout('SiO₂:Al₂O₃', target.sio2, target.al2o3),
-    );
+    paintTriaxialPoint(ternaryToXY(triaxialTernary(target), model.vertices));
   };
 
   /** Ends the triaxial drag and lets go of capture; idempotent. */
@@ -585,7 +544,7 @@ export function createD3Adapter(): ChartAdapter {
     triaxialSvg.setPointerCapture(event.pointerId);
     event.preventDefault();
     // preventDefault swallows the focus the click would have given; take it
-    // explicitly so the readout and the arrow keys are live right away.
+    // explicitly so the arrow keys are live right away.
     triaxialSvg.focus({ preventScroll: true });
     previewTriaxial(event);
   };
@@ -628,65 +587,25 @@ export function createD3Adapter(): ChartAdapter {
       sio2: snap ? snapTo(at.a + move[0] * step, TRIAXIAL_SNAP) : at.a + move[0] * step,
       al2o3: snap ? snapTo(at.b + move[1] * step, TRIAXIAL_SNAP) : at.b + move[1] * step,
     };
-    paintTriaxialPoint(
-      ternaryToXY(triaxialTernary(target), model.vertices),
-      ratioReadout('SiO₂:Al₂O₃', target.sio2, target.al2o3),
-    );
+    paintTriaxialPoint(ternaryToXY(triaxialTernary(target), model.vertices));
     triaxialInteraction?.onTarget(target);
     return true;
   };
 
   const releaseTriaxial = (): void => {
     triaxialSvg = null;
-    triaxialContent = null;
     triaxialImage = null;
     triaxialEdge = null;
     triaxialMarker = null;
-    triaxialReadout = null;
-    triaxialLabel = null;
     triaxialDragging = false;
     triaxialPointer = null;
-    triaxialTransform = { x: 0, y: 0, k: 1 };
     triaxialLabels = null;
     triaxialModel = null;
-    triaxialScale = 1;
   };
 
-  /** The triaxial map's own gestures: wheel zooms at the pointer, drag pans,
-   *  double-click steps in, and ± / 0 work from the keyboard. The map content
-   *  carries the transform, so the published raster magnifies in place and stays
-   *  registered with the calibrated triangle drawn over it; strokes and the point
-   *  marker keep their size, and the margin labels stay put. */
-  const attachTriaxialZoom = (root: SVGSVGElement, viewport: Viewport): void => {
-    const behavior = zoom()
-      .scaleExtent([TRIAXIAL_ZOOM_RANGE[0], TRIAXIAL_ZOOM_RANGE[1]])
-      .extent([
-        [0, 0],
-        [viewport.width, viewport.height],
-      ])
-      .translateExtent([
-        [0, 0],
-        [viewport.width, viewport.height],
-      ])
-      .filter(
-        (event): boolean =>
-          (event instanceof WheelEvent && !event.ctrlKey) ||
-          event.type === 'dblclick' ||
-          (event instanceof MouseEvent && event.shiftKey && event.button === 0) ||
-          (typeof TouchEvent !== 'undefined' && event instanceof TouchEvent && event.touches.length > 1),
-      )
-      .on('zoom', (event) => {
-        const transform = event.transform;
-        triaxialScale = transform.k;
-        triaxialTransform = { x: transform.x, y: transform.y, k: transform.k };
-        triaxialContent?.setAttribute(
-          'transform',
-          `translate(${transform.x} ${transform.y}) scale(${transform.k})`,
-        );
-        if (triaxialModel?.point) paintTriaxialPoint(triaxialModel.point, triaxialLabel);
-      });
-
-    select(root).call(behavior);
+  /** The triaxial map's keyboard: Escape cancels a drag, the arrows step the
+   *  shares. The map does not zoom, so no other key belongs to it. */
+  const attachTriaxialKeys = (root: SVGSVGElement): void => {
     root.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         endTriaxialDrag();
@@ -694,18 +613,13 @@ export function createD3Adapter(): ChartAdapter {
         paintTriaxial(triaxialModel);
         return;
       }
-      if (nudgeTriaxial(event)) return;
-      const node = select(root);
-      if (event.key === '+' || event.key === '=') behavior.scaleBy(node, 1.4);
-      else if (event.key === '-' || event.key === '_') behavior.scaleBy(node, 1 / 1.4);
-      else if (event.key === '0') behavior.transform(node, zoomIdentity);
-      else return;
-      event.preventDefault();
+      nudgeTriaxial(event);
     });
   };
 
-  /** Builds the triaxial skeleton once per host: a clipped frame, the content
-   *  group its gestures move, and the margin labels outside both. */
+  /** Builds the triaxial skeleton once per host: the stretched raster, the
+   *  calibrated triangle over it, the point marker, and the margin labels. The
+   *  map does not zoom, so nothing here carries a transform. */
   const mountTriaxialSvg = (host: HTMLElement, model: TriaxialModel): void => {
     host.textContent = '';
     const { viewport } = model;
@@ -718,20 +632,9 @@ export function createD3Adapter(): ChartAdapter {
       'aria-label': model.aria,
     }) as SVGSVGElement;
     root.style.display = 'block';
-    root.style.cursor = 'zoom-in';
+    root.style.cursor = 'crosshair';
     root.style.touchAction = 'none';
 
-    const defs = svgEl('defs');
-    const clip = svgEl('clipPath', { id: TRIAXIAL_CLIP_ID });
-    clip.appendChild(svgEl('rect', { x: 0, y: 0, width: viewport.width, height: viewport.height }));
-    defs.appendChild(clip);
-    root.appendChild(defs);
-
-    // The clip has to sit outside the transform: a clip path is read in the user
-    // space of the element carrying it, so clipping the magnified group would
-    // move the frame along with the raster instead of holding it.
-    const frame = svgEl('g', { 'clip-path': `url(#${TRIAXIAL_CLIP_ID})` });
-    const content = svgEl('g') as SVGGElement;
     const image = svgEl('image', {
       href: model.backdrop,
       x: 0,
@@ -743,8 +646,7 @@ export function createD3Adapter(): ChartAdapter {
       // and shifted down ~11px. The calibration page stretches the very same
       // PNG with `width/height: 100%`, and every corner in TRIAXIAL_CALIBRATION
       // is measured against that stretched raster — letterboxing here put the
-      // apex ~24 raster px high and the base ~22 px low. Zooming the group keeps
-      // the raster and those corners registered at every scale.
+      // apex ~24 raster px high and the base ~22 px low.
       preserveAspectRatio: 'none',
     });
     const edge = svgEl('path', {
@@ -752,7 +654,6 @@ export function createD3Adapter(): ChartAdapter {
       fill: 'none',
       stroke: '#111111',
       'stroke-width': 1.5,
-      'vector-effect': 'non-scaling-stroke',
     });
     const marker = svgEl('circle', {
       cx: 0,
@@ -762,39 +663,25 @@ export function createD3Adapter(): ChartAdapter {
       stroke: '#ffffff',
       'stroke-width': 1.5,
       visibility: 'hidden',
-      'vector-effect': 'non-scaling-stroke',
     });
-    content.append(image, edge, marker);
-    frame.appendChild(content);
-    root.appendChild(frame);
-
     const labels = svgEl('g') as SVGGElement;
-    root.appendChild(labels);
-    // The marker's readout lives outside the zoomed group, so the text keeps
-    // its size and crispness at every scale.
-    const readout = svgEl('g') as SVGGElement;
-    root.appendChild(readout);
+    root.append(image, edge, marker, labels);
     host.appendChild(root);
 
     root.addEventListener('pointerdown', onTriaxialPointerDown);
     root.addEventListener('pointermove', onTriaxialPointerMove);
     root.addEventListener('pointerup', onTriaxialPointerUp);
     root.addEventListener('pointercancel', onTriaxialPointerCancel);
-    root.addEventListener('focus', () => paintTriaxial(triaxialModel));
-    root.addEventListener('blur', () => paintTriaxial(triaxialModel));
 
     triaxialSvg = root;
-    triaxialReadout = readout;
-    triaxialContent = content;
     triaxialImage = image;
     triaxialEdge = edge;
     triaxialMarker = marker;
     triaxialLabels = labels;
-    attachTriaxialZoom(root, viewport);
+    attachTriaxialKeys(root);
   };
 
-  /** Paints the triaxial map into its skeleton; a null model clears the host.
-   *  The skeleton itself survives, so the zoom transform does too. */
+  /** Paints the triaxial map into its skeleton; a null model clears the host. */
   const paintTriaxial = (model: TriaxialModel | null): void => {
     const host = triaxialHost;
     if (!host) return;
@@ -810,15 +697,8 @@ export function createD3Adapter(): ChartAdapter {
     triaxialSvg.setAttribute('aria-label', model.aria);
     triaxialImage.setAttribute('href', model.backdrop);
     triaxialEdge.setAttribute('d', straightPath(model.edge, true));
-    const at = model.point ? xyToTernary(model.point, model.vertices) : null;
-    // The readout stays as long as the map is the thing being steered.
-    const label = at && triaxialFocused() ? ratioReadout('SiO₂:Al₂O₃', at.a, at.b) : null;
-    if (model.point) paintTriaxialPoint(model.point, label);
-    else {
-      triaxialMarker.setAttribute('visibility', 'hidden');
-      triaxialLabel = null;
-      if (triaxialReadout) triaxialReadout.textContent = '';
-    }
+    if (model.point) paintTriaxialPoint(model.point);
+    else triaxialMarker.setAttribute('visibility', 'hidden');
     triaxialLabels.replaceChildren(...(model.fluxRatio ?? []).map((line) => textNode(line, 11, 'start')));
   };
 
@@ -826,137 +706,26 @@ export function createD3Adapter(): ChartAdapter {
   const boronPath = (point: Pt): string =>
     `M ${point.x - BORON_MARKER_HALF} ${point.y} L ${point.x} ${point.y - BORON_MARKER_HALF} L ${point.x + BORON_MARKER_HALF} ${point.y} L ${point.x} ${point.y + BORON_MARKER_HALF} Z`;
 
-  /** The domain values behind a boron model's screen point. */
-  const boronDomainOf = (model: BoronModel): BoronTarget | null => {
-    if (!model.point) return null;
-    const x = createStullTransform(model.viewport, model.domain).toDomain(model.point).x;
-    const fraction = 1 - (model.point.y - model.plot.y) / model.plot.height;
-    return { b2o3: x, celsius: celsiusAtFraction(Math.min(1, Math.max(0, fraction))) };
-  };
-
-  const boronReadoutText = (target: BoronTarget): string =>
-    `B₂O₃ ${target.b2o3.toFixed(2)} · ${Math.round(target.celsius)} °C`;
-
-  const boronFocused = (): boolean => boronSvg !== null && document.activeElement === boronSvg;
-
-  /** Paints the marker and its readout; a null target hides both. */
-  const paintBoronPoint = (target: BoronTarget | null, label: string | null): void => {
-    if (!boronMarker || !boronReadout) return;
-    boronReadout.textContent = '';
-    if (!target || !boronModel) {
+  /** Paints the recipe's place on the map, and hides the marker when there is
+   *  none. The map is a reading of the batch: nothing on it is draggable. */
+  const paintBoronPoint = (model: BoronModel): void => {
+    if (!boronMarker) return;
+    if (!model.point) {
       boronMarker.setAttribute('visibility', 'hidden');
       return;
     }
-    const transform = createStullTransform(boronModel.viewport, boronModel.domain);
-    const point = {
-      x: transform.toScreen({ x: target.b2o3, y: boronModel.domain.y[0] }).x,
-      y: boronPlotY(boronModel.plot, target.celsius),
-    };
     boronMarker.setAttribute('visibility', 'visible');
-    boronMarker.setAttribute('d', boronPath(point));
-    if (label) boronReadout.appendChild(readoutText(label, point));
-  };
-
-  /** The pointer's place on the boron map, snapped while Ctrl is held. */
-  const boronTargetAt = (event: PointerEvent): BoronTarget | null => {
-    const model = boronModel;
-    const root = boronSvg;
-    if (!model || !root) return null;
-    const rect = root.getBoundingClientRect();
-    const view = clientToViewBox({ x: event.clientX, y: event.clientY }, rect, model.viewport);
-    const x = createStullTransform(model.viewport, model.domain).toDomain(view).x;
-    const fraction = 1 - (view.y - model.plot.y) / model.plot.height;
-    const celsius = celsiusAtFraction(Math.min(1, Math.max(0, fraction)));
-    const snap = event.ctrlKey || event.metaKey;
-    return {
-      b2o3: snap ? snapTo(x, BORON_SNAP_X) : x,
-      celsius: snap ? snapTo(celsius, BORON_SNAP_Y) : celsius,
-    };
-  };
-
-  const previewBoron = (event: PointerEvent): void => {
-    const target = boronTargetAt(event);
-    if (target) paintBoronPoint(target, boronReadoutText(target));
-  };
-
-  /** Ends the boron drag and lets go of capture; idempotent. */
-  const endBoronDrag = (): void => {
-    if (boronHost && boronPointer !== null && boronHost.hasPointerCapture(boronPointer)) {
-      boronHost.releasePointerCapture(boronPointer);
-    }
-    boronDragging = false;
-    boronPointer = null;
-  };
-
-  const onBoronPointerDown = (event: PointerEvent): void => {
-    if (!boronHost || !boronModel?.point || event.button !== 0) return;
-    boronDragging = true;
-    boronPointer = event.pointerId;
-    // Capture on the host: the map is rebuilt on every update, and a capture on
-    // an element about to be replaced would let the drag fall through.
-    boronHost.setPointerCapture(event.pointerId);
-    event.preventDefault();
-    boronSvg?.focus({ preventScroll: true });
-    previewBoron(event);
-  };
-
-  const onBoronPointerMove = (event: PointerEvent): void => {
-    if (boronDragging) previewBoron(event);
-  };
-
-  const onBoronPointerUp = (event: PointerEvent): void => {
-    if (!boronDragging || event.button !== 0 || event.pointerId !== boronPointer) return;
-    const target = boronTargetAt(event);
-    endBoronDrag();
-    if (target) boronInteraction?.onTarget(target);
-  };
-
-  const onBoronPointerCancel = (): void => {
-    if (!boronDragging) return;
-    endBoronDrag();
-    if (boronHost && boronModel) renderBoron(boronHost, boronModel);
-  };
-
-  /** Arrow keys step the point; Ctrl walks the snap grid. False when the key is
-   *  not an arrow. */
-  const nudgeBoron = (event: KeyboardEvent): boolean => {
-    const model = boronModel;
-    if (!model) return false;
-    const delta: Record<string, [number, number]> = {
-      ArrowLeft: [-1, 0],
-      ArrowRight: [1, 0],
-      ArrowDown: [0, -1],
-      ArrowUp: [0, 1],
-    };
-    const move = delta[event.key];
-    if (!move) return false;
-    event.preventDefault();
-    const at = boronDomainOf(model);
-    if (!at) return true;
-    const snap = event.ctrlKey || event.metaKey;
-    const stepX = snap ? BORON_SNAP_X : BORON_NUDGE_X;
-    const stepY = snap ? BORON_SNAP_Y : BORON_NUDGE_Y;
-    const target: BoronTarget = {
-      b2o3: snap ? snapTo(at.b2o3 + move[0] * stepX, BORON_SNAP_X) : at.b2o3 + move[0] * stepX,
-      celsius: snap ? snapTo(at.celsius + move[1] * stepY, BORON_SNAP_Y) : at.celsius + move[1] * stepY,
-    };
-    paintBoronPoint(target, boronReadoutText(target));
-    boronInteraction?.onTarget(target);
-    return true;
+    boronMarker.setAttribute('d', boronPath(model.point));
   };
 
   /** The boron map: a published colour field with the recipe plotted on top. */
   const renderBoron = (host: HTMLElement, model: BoronModel): void => {
-    // The rebuild replaces the very node that holds focus; take the focus back
-    // so the readout and the arrow keys survive an update.
-    const hadFocus = boronSvg !== null && document.activeElement === boronSvg;
     host.textContent = '';
     const { plot, viewport } = model;
     const root = svgEl('svg', {
       width: viewport.width,
       height: viewport.height,
       viewBox: `0 0 ${viewport.width} ${viewport.height}`,
-      tabindex: 0,
       role: 'img',
       'aria-label': model.aria,
     }) as SVGSVGElement;
@@ -1010,9 +779,7 @@ export function createD3Adapter(): ChartAdapter {
       'stroke-width': 1.5,
       visibility: 'hidden',
     });
-    const readout = svgEl('g') as SVGGElement;
     root.appendChild(marker);
-    root.appendChild(readout);
 
     const tickLabels = svgEl('g');
     for (const tick of model.axes.xTicks) tickLabels.appendChild(textNode(tick, 10, 'middle'));
@@ -1025,13 +792,8 @@ export function createD3Adapter(): ChartAdapter {
     root.appendChild(textNode(model.axes.yTitle, 12, 'middle'));
 
     host.appendChild(root);
-    boronModel = model;
-    boronSvg = root;
     boronMarker = marker;
-    boronReadout = readout;
-    if (hadFocus) root.focus({ preventScroll: true });
-    const at = boronDomainOf(model);
-    paintBoronPoint(at, at && boronFocused() ? boronReadoutText(at) : null);
+    paintBoronPoint(model);
   };
 
   return {
@@ -1102,24 +864,8 @@ export function createD3Adapter(): ChartAdapter {
       if (triaxialHost) paintTriaxial(model);
     },
 
-    mountBoron(host: HTMLElement, model: BoronModel, handlers: BoronInteraction): void {
+    mountBoron(host: HTMLElement, model: BoronModel): void {
       boronHost = host;
-      boronInteraction = handlers;
-      // The listeners live on the host, which outlives the SVG that every
-      // update rebuilds — capture and keys must not be tied to that node.
-      host.addEventListener('pointerdown', onBoronPointerDown);
-      host.addEventListener('pointermove', onBoronPointerMove);
-      host.addEventListener('pointerup', onBoronPointerUp);
-      host.addEventListener('pointercancel', onBoronPointerCancel);
-      host.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-          endBoronDrag();
-          boronInteraction?.onCancel?.();
-          if (boronHost && boronModel) renderBoron(boronHost, boronModel);
-          return;
-        }
-        nudgeBoron(event);
-      });
       renderBoron(host, model);
     },
 
