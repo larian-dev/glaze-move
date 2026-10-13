@@ -14,6 +14,45 @@ export function chemistryRows(rows: RecipeRow[], includeAdditions: boolean): Rec
   return includeAdditions ? rows : rows.filter((row) => row.kind === 'main');
 }
 
+/** One line of the printable weighing sheet: a material and what to weigh out.
+ *  `weight` is null while there is no base to scale against. */
+export type WeighLine = { name: string; amount: number; weight: number | null };
+
+/**
+ * The weighing sheet's two lists — the base and the additions, each largest
+ * amount first (ties keep recipe order). `batchWeight` is the mass the base is
+ * scaled to: every line weighs `amount / Σ base · batchWeight`, so an addition
+ * reads as its share of the base — the same reading `renormalizeRecipe` gives
+ * the number in its field. Rows with no amount or no material never reach a
+ * sheet, and never count towards the base either.
+ */
+export function weighingSheet(
+  rows: RecipeRow[],
+  materials: MaterialIndex,
+  batchWeight: number,
+): { main: WeighLine[]; additional: WeighLine[] } {
+  const collect = (kind: RecipeRow['kind']): WeighLine[] => {
+    const lines: WeighLine[] = [];
+    for (const row of rows) {
+      if (row.kind !== kind || row.amount <= 0) continue;
+      const material = materials.get(row.materialId);
+      if (!material) continue;
+      lines.push({ name: material.name, amount: row.amount, weight: null });
+    }
+    lines.sort((a, b) => b.amount - a.amount);
+    return lines;
+  };
+
+  const main = collect('main');
+  const additional = collect('additional');
+  const base = main.reduce((sum, line) => sum + line.amount, 0);
+  if (base > 0 && batchWeight > 0) {
+    const factor = batchWeight / base;
+    for (const line of [...main, ...additional]) line.weight = line.amount * factor;
+  }
+  return { main, additional };
+}
+
 /** Rows paired with their material; unknown ids and zero amounts are dropped. */
 export function resolveRows(rows: RecipeRow[], materials: MaterialIndex): ResolvedRow[] {
   const resolved: ResolvedRow[] = [];

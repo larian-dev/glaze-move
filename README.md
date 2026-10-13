@@ -34,6 +34,9 @@ Inspired by and built on the published work of [calc.portalkeramiki.ru](https://
 - **History & transfer** — session checkpoints with one-click restore, JSON export, and
   share links that encode the recipe right in the URL — importing accepts a pasted link
   or code.
+- **Weighing sheet** — type a batch weight and print the recipe as a checklist: components
+  largest first with the additions kept apart, each line's grams for the batch, an empty
+  box to tick, and a QR code that reopens the recipe.
 - **Material database** — the bundled catalog plus your own local materials (kept in
   browser storage), with a live JSON view and plain-JSON export/import of your local
   entries.
@@ -101,6 +104,9 @@ line. Materials you add yourself are stored in your browser only.
 - **История и обмен данными** — контрольные точки сессии с восстановлением в один
   клик, экспорт JSON и ссылки, кодирующие рецепт прямо в URL; импорт принимает
   вставленную ссылку или код.
+- **Печатный лист отвеса** — введите вес замеса и распечатайте рецепт как чек-лист:
+  компоненты по убыванию количества, отдельно добавки, у каждой строки — граммы на
+  замес, пустая клетка для отметки и QR-код, открывающий рецепт.
 - **База материалов** — встроенный каталог плюс свои материалы (хранятся в браузере)
   с живым просмотром JSON и экспортом/импортом своих записей обычными JSON-файлами.
 - **Английский и русский** языки во всём интерфейсе.

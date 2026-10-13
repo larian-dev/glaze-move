@@ -22,3 +22,8 @@ export {
   type ChangeHistoryOptions,
   type HistoryEntry,
 } from './history';
+export {
+  createPrintPanel,
+  type PrintPanel,
+  type PrintPanelOptions,
+} from './print-sheet';

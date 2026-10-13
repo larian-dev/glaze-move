@@ -6,7 +6,9 @@ export {
   molePercent,
   moles,
   resolveRows,
+  weighingSheet,
   type ResolvedRow,
+  type WeighLine,
 } from './batch';
 export {
   OTHER_FLUX_THRESHOLD,

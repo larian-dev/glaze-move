@@ -579,10 +579,12 @@ h3 {
 }
 
 
-/* The middle column is narrow by design, so the unity formula and the history
-   next to it are set a step tighter than the panels in the other two columns. */
+/* The middle column is narrow by design, so the unity formula, the print
+   controls and the history under them are set a step tighter than the panels in
+   the other two columns. */
 .panel--results,
-.panel--history {
+.panel--history,
+.panel--print {
   padding: 12px 12px;
 }
 
@@ -807,6 +809,169 @@ h3 {
 }
 
 
+/* The batch weight and the button that prints the weighing sheet. The button
+   sits at the end of the row, where the eye looks for it. */
+.print-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.print-weight {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.print-caption {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+/* Small — a field beside its button. The spinner buttons are off: they eat the
+   field's width and have nothing to offer a batch weight. */
+.print-weight-input {
+  font: inherit;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--ink);
+  width: 9ch;
+}
+
+.print-weight-input::-webkit-outer-spin-button,
+.print-weight-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.print-weight-input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.print-button {
+  margin-left: auto;
+}
+
+.print-status {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Nothing to say: the line must not leave a gap under the controls. */
+.print-status:empty {
+  display: none;
+}
+
+
+/* The weighing sheet. It exists only in the print dialog: built on demand,
+   parked in <body> and hidden on screen — the print block at the end of this
+   file shows it in place of the app. Pale greys and borders would only
+   dissipate in ink, so the sheet is plain black on white. */
+.print-sheet {
+  display: none;
+  color: #000000;
+}
+
+.print-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8mm;
+  margin-bottom: 6mm;
+}
+
+/* 40mm of code: a long share link still scans from arm's length away. */
+.print-qr svg {
+  display: block;
+  width: 40mm;
+  height: 40mm;
+}
+
+.print-scan,
+.print-batch {
+  margin: 1mm 0 0;
+  font-size: 10pt;
+}
+
+.print-scan {
+  max-width: 40mm;
+}
+
+.print-heading {
+  margin: 0 0 3mm;
+  font-size: 17pt;
+  line-height: 1.15;
+}
+
+.print-table {
+  width: 100%;
+  /* Fixed layout with the widths on <col>: auto layout parks the table's spare
+     width in front of the last column, leaving the tick cells adrift. */
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 11pt;
+}
+
+.print-col-num {
+  width: 9mm;
+}
+
+.print-col-amount,
+.print-col-weight {
+  width: 22mm;
+}
+
+.print-col-tick {
+  width: 14mm;
+}
+
+.print-table th,
+.print-table td {
+  border: 1px solid #000000;
+  padding: 1.4mm 2mm;
+  text-align: left;
+  vertical-align: middle;
+}
+
+/* The heading row of a section: it spans the table and names what is below. */
+.print-group-title {
+  font-size: 10pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.print-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.print-amount,
+.print-weight {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.print-tick {
+  text-align: center;
+}
+
+/* The empty box the user ticks — or writes the weighed amount in — by hand. */
+.print-tick-box {
+  display: inline-block;
+  width: 6mm;
+  height: 6mm;
+  border: 1px solid #000000;
+  vertical-align: middle;
+}
+
+
 @media (max-width: 1180px) {
   .layout {
     grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
@@ -1017,4 +1182,28 @@ h3 {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+
+/* The page's own margin. Only the sheet is ever meant for paper, but a Ctrl+P
+   without one leaves the app in the same place the default margin put it. */
+@page {
+  margin: 14mm;
+}
+
+@media print {
+  /* With a sheet built, the app steps aside for it: everything else in <body>
+     is dropped, so the dialog shows the sheet on pages of its own. The body
+     class is what keeps a Ctrl+P without a sheet from printing a blank page. */
+  body.printing > *:not(.print-sheet) {
+    display: none !important;
+  }
+
+  body.printing .print-sheet {
+    display: block;
+  }
+
+  body {
+    background: #ffffff;
+  }
 }

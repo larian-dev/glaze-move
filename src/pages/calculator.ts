@@ -51,7 +51,7 @@ import {
 } from '../state/persistence';
 import type { PersistedForm } from '../state/persistence';
 import type { Material, MaterialIndex, RecipeRow } from '../types';
-import { createChangeHistory, createRecipeEditor, createResults, el, setText } from '../ui';
+import { createChangeHistory, createPrintPanel, createRecipeEditor, createResults, el, setText } from '../ui';
 import type { ResultsValues, UnitDisplay } from '../ui';
 import { cycleToggle, switchToggle } from '../ui/dom';
 
@@ -277,6 +277,7 @@ export function renderCalculatorPage(
 
   const recipeHost = el('div', { class: 'panel panel--recipe' });
   const resultsHost = el('div', { class: 'panel panel--results' });
+  const printHost = el('div', { class: 'panel panel--print' });
   const historyHost = el('div', { class: 'panel panel--history' });
 
   const stullHint = el('p', { class: 'panel-hint' });
@@ -455,7 +456,7 @@ export function renderCalculatorPage(
   container.replaceChildren(
     el('div', { class: 'layout' }, [
       el('div', { class: 'column column--recipe' }, [recipeHost, transferPanel]),
-      el('div', { class: 'column column--results' }, [resultsHost, historyHost]),
+      el('div', { class: 'column column--results' }, [resultsHost, printHost, historyHost]),
       el('div', { class: 'column column--charts' }, [chartPanel]),
     ]),
   );
@@ -504,6 +505,15 @@ export function renderCalculatorPage(
       // A view preference, not a recipe edit: no checkpoint, no history entry.
       state.set({ includeAdditions: include });
     },
+  });
+
+  /** The printable weighing sheet: the recipe scaled to the entered batch
+   *  weight, with a QR that reopens the recipe as the shared link does. */
+  const print = createPrintPanel(printHost, {
+    lang,
+    materials,
+    getRows: () => state.get().rows,
+    getUrl: () => shareUrl(state.get().rows),
   });
 
   /** One button per charted RO the recipe actually contains, in chart order; the
@@ -765,6 +775,7 @@ function paintRoTools(): void {
     setText(importCancel, t(next, 'transfer.importCancel'));
     setText(shareButton, t(next, 'transfer.share'));
     shareButton.setAttribute('aria-label', t(next, 'transfer.copyLink'));
+    print.setLang(next);
   }
 
   bindStore(state, (current) => {

@@ -68,6 +68,18 @@ no backend, no account, no network traffic.
   (rows only, base64url); a companion page for local materials. The triaxial calibration
   utility (`src/pages/calibrate.ts`) is a gitignored local developer tool: routed only in
   dev builds, absent from the repository and the public bundle.
+- **Weighing sheet** — the print panel above the history: type a batch weight, press
+  *Print*, and the page hands the dialog a sheet built on demand — the base and the
+  additions, each sorted by entered amount (largest first, ties in recipe order), every
+  line with its grams, a number and an empty tick box. `weighingSheet`
+  (`src/core/batch.ts`) scales every line by `batchWeight / Σ base`, so an addition's
+  number reads as its share of the base — the reading `renormalizeRecipe` gives it — and
+  the base's lines sum to the typed weight; a recipe with no base prints the amounts
+  alone. The sheet's QR encodes the share link (`uqr`, ECC M, falling back to L), drawn
+  as one SVG path with the spec's 4-module quiet zone. It lives in `<body>` only while
+  the dialog reads it: the print rules in `style.css` hand the page to it while
+  `body.printing` is set (`src/ui/print-sheet.ts`), and a Ctrl+P without a sheet prints
+  the app as before.
 - **Debug output** — the drag solve, the zone scan and the page state each log one console
   line when the flag is on: `?debug=1` in the URL, or `localStorage['glaze-calc.debug'] = '1'`
   (read per call, so no reload is needed). `[glaze-calc solve]` carries the target, the

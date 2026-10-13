@@ -21,6 +21,7 @@ import {
   stullPoint,
   to100,
   unityFormula,
+  weighingSheet,
 } from '../src/core';
 
 const MATERIALS = materialIndex(SYSTEM_MATERIALS);
@@ -163,6 +164,39 @@ describe('batch', () => {
     // the batch average, so its only effect is to widen the denominator — the
     // dilution is the proof it is being counted at all.
     expect(loiPercent(all, MATERIALS)).toBeLessThan(loiPercent(rows, MATERIALS));
+  });
+
+  it('sorts the weighing sheet by amount and scales it to the batch weight', () => {
+    const rows: RecipeRow[] = [
+      row('1', 10),
+      row('2', 30),
+      row('nope', 50), // unknown id: no line, and no share of the base
+      row('2', 0), // nothing to weigh
+      row('5', 5, 'additional'),
+      row('3', 20, 'additional'),
+    ];
+    const sheet = weighingSheet(rows, MATERIALS, 200);
+
+    // The base is 40 (10 + 30) — the unknown and zero-amount rows never enter it.
+    expect(sheet.main.map((line) => line.amount)).toEqual([30, 10]);
+    expect(sheet.main.map((line) => line.weight)).toEqual([150, 50]);
+    expect(sheet.main.map((line) => line.name)).toEqual([
+      MATERIALS.get('2')!.name,
+      MATERIALS.get('1')!.name,
+    ]);
+    // Additions read as percentages over the base, so they scale by the same
+    // factor: 20 parts of 100 is a fifth of the base and a fifth of the batch.
+    expect(sheet.additional.map((line) => line.amount)).toEqual([20, 5]);
+    expect(sheet.additional.map((line) => line.weight)).toEqual([100, 25]);
+  });
+
+  it('leaves the weights off a sheet with no base to scale', () => {
+    const rows: RecipeRow[] = [row('5', 5, 'additional')];
+    expect(weighingSheet(rows, MATERIALS, 1000).main).toEqual([]);
+    expect(weighingSheet(rows, MATERIALS, 1000).additional).toEqual([
+      { name: MATERIALS.get('5')!.name, amount: 5, weight: null },
+    ]);
+    expect(weighingSheet(rows, MATERIALS, 0).additional[0]?.weight).toBeNull();
   });
 });
 
