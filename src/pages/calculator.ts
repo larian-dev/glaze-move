@@ -90,7 +90,7 @@ function materialIndexOf(state: FormState): MaterialIndex {
  */
 const DEFAULT_RECIPE: RecipeRow[] = [
   { materialId: '1', amount: 40.5, kind: 'main' },
-  { materialId: '2', amount: 36, kind: 'main' },
+  { materialId: '25', amount: 36, kind: 'main' },
   { materialId: '3', amount: 15, kind: 'main' },
   { materialId: '5', amount: 8.5, kind: 'main' },
   { materialId: '15', amount: 4, kind: 'additional' },
