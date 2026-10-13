@@ -25,6 +25,7 @@ import {
   meltabilityK,
   moleCoefficients,
   molePercent,
+  publishedProfile,
   siAlRatio,
   solveForStullTarget,
   solveForTarget,
@@ -154,6 +155,35 @@ function snapbackKey(reason: SolveRejection): TranslationKey {
 }
 
 /**
+ * The unity entries a drag leaves where they are: the batch's B₂O₃ while the
+ * boron clamp is on, and — while the additions clamp holds them by unity —
+ * every oxide the additions bring, since an addition that keeps its share of
+ * the flux keeps its contribution to every value it touches. Entries the
+ * recipe does not have are never asked for: the panel tints what it draws.
+ */
+function clampedEntries(
+  state: FormState,
+  materials: MaterialIndex,
+  moles: Map<string, number>,
+): Record<string, true> {
+  const clamped: Record<string, true> = {};
+  if (state.clampBoron && (moles.get('B2O3') ?? 0) > 0) clamped.B2O3 = true;
+  // The additions' unity values live in the displayed chemistry only: with the
+  // UMF switch off the additions are not in the formula at all.
+  if (state.additionClamp === 'unity' && state.includeAdditions) {
+    for (const row of state.rows) {
+      if (row.kind !== 'additional' || row.amount <= 0) continue;
+      const material = materials.get(row.materialId);
+      if (!material) continue;
+      for (const oxide of publishedProfile(material).keys()) {
+        if (moles.has(oxide)) clamped[oxide] = true;
+      }
+    }
+  }
+  return clamped;
+}
+
+/**
  * Flux basis of the Stull point: the typed R₂O + RO moles on batchMoles' scale
  * — the same ×100/total normalization batchMoles divides by — so the point
  * reads the same whichever units the rows happen to sum to (with additions in
@@ -206,11 +236,12 @@ function compute(state: FormState, materials: MaterialIndex, zoom: Domain | null
     firing: firingTemperatureK(meltability.k, meltability.approximate),
     costPerKg: costPerKg(state.rows, materials),
     loi: loiPercent(state.rows, materials),
-    // The additions clamp holds each addition's own amount — or its share of the
-    // flux — so it has no single UMF entry to tint; the boron clamp holds the
-    // displayed B₂O₃ and drops out of a batch without it. The R₂O:RO clamp tints
-    // its ratio tile instead.
-    clamped: state.clampBoron && (moles.get('B2O3') ?? 0) > 0 ? { B2O3: true } : {},
+    // The clamps tint what they hold: the boron clamp the displayed B₂O₃ (and
+    // it drops out of a batch without it), the additions clamp by unity the
+    // values the additions bring — see `clampedEntries`. The R₂O:RO clamp tints
+    // its ratio tile instead, and the additions clamp by amount tints the
+    // numbers in the recipe list.
+    clamped: clampedEntries(state, materials, moles),
     clampedFluxRatio: state.clampFluxRatio,
   };
 
@@ -491,6 +522,7 @@ export function renderCalculatorPage(
     materials,
     lang,
     includeAdditions: state.get().includeAdditions,
+    additionClamp: state.get().additionClamp,
     onChange: (rows) => {
       // Structural edits — a row added, removed, or pointed at another material:
       // persisted and recomputed, but no checkpoint. Half-built rows would
@@ -571,6 +603,7 @@ function paintRoTools(): void {
       clearNotice();
     }
     results.update(computed.values);
+    editor.setAdditionClamp(state.get().additionClamp);
     paintRoTools();
     paintBoron();
     adapter?.updateStull(computed.stull);

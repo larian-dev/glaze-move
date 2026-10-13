@@ -2,6 +2,7 @@ import { t } from '../i18n';
 import type { Lang, TranslationKey } from '../i18n';
 import type { MaterialIndex, RecipeRow } from '../types';
 import { renormalizeRecipe } from '../core/normalize';
+import type { AdditionClamp } from '../core/solve';
 import { el, fmt, option, switchToggle } from './dom';
 
 type RowKind = RecipeRow['kind'];
@@ -38,6 +39,9 @@ export type RecipeEditorOptions = {
   lang: Lang;
   /** Whether `additional` rows currently join the chemistry. */
   includeAdditions: boolean;
+  /** What a drag may do to the additions; its `amount` state holds their
+   *  numbers, which the editor tints. */
+  additionClamp: AdditionClamp;
   /** Structural edits — a row added, removed, re-pointed at another material, or
    *  the recipe cleared: persisted and recomputed, but not checkpointed. */
   onChange: (rows: RecipeRow[]) => void;
@@ -49,6 +53,8 @@ export type RecipeEditorOptions = {
 export type RecipeEditor = {
   /** Rebuilds the whole editor from the caller's state; also used for language switches. */
   render: (rows: RecipeRow[], lang: Lang) => void;
+  /** Follows the additions clamp: its `amount` state tints the addition numbers. */
+  setAdditionClamp: (clamp: AdditionClamp) => void;
 };
 
 /** Independent copy of the rows, so caller and editor never share row objects. */
@@ -65,6 +71,7 @@ export function createRecipeEditor(
   let rows: RecipeRow[] = cloneRows(options.rows);
   // The switches live here, so the editor keeps the flags; the caller owns the store.
   let includeAdditions = options.includeAdditions;
+  let additionClamp = options.additionClamp;
   let total: HTMLElement | null = null;
   /** The row a live pointer drag is carrying; null between drags. */
   let dragging: HTMLElement | null = null;
@@ -429,6 +436,16 @@ export function createRecipeEditor(
     return el('div', { class: 'recipe-actions' }, [normalize, clear]);
   }
 
+  /** Tints the numbers the additions clamp is holding: in its `amount` state a
+   *  drag rewrites the base around them and leaves them as they are. */
+  function paintClamp(): void {
+    const held = additionClamp === 'amount';
+    const inputs = container.querySelectorAll<HTMLInputElement>(
+      '.recipe-section--additional .recipe-field--amount input',
+    );
+    for (const input of inputs) input.classList.toggle('recipe-amount--clamped', held);
+  }
+
   function render(nextRows: RecipeRow[], nextLang: Lang): void {
     lang = nextLang;
     rows = cloneRows(nextRows);
@@ -440,9 +457,16 @@ export function createRecipeEditor(
       listSection('main', 'recipe.mainComponents'),
       listSection('additional', 'recipe.additionalComponents'),
     );
+    paintClamp();
   }
 
   render(options.rows, options.lang);
 
-  return { render };
+  return {
+    render,
+    setAdditionClamp(next: AdditionClamp): void {
+      additionClamp = next;
+      paintClamp();
+    },
+  };
 }

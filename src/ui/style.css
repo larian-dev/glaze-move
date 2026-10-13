@@ -407,6 +407,12 @@ h3 {
   width: 100%;
 }
 
+/* An amount the additions clamp holds — its `amount` state — in the same green
+   the UMF panel tints the entries its clamps hold. */
+.recipe-field input.recipe-amount--clamped {
+  background: var(--clamp);
+}
+
 /* Drag handle: pointer-drag reorders the row, or moves it between sections. */
 .recipe-handle {
   display: inline-flex;

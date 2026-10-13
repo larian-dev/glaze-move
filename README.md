@@ -29,8 +29,10 @@ Inspired by and built on the published work of [calc.portalkeramiki.ru](https://
   **free** leaves the additions to the solver. *Clamp flux ratio* holds the R₂O:RO
   balance where it is — a drag that would shift it is refused; off, the freedom goes into
   moving the recipe as little as possible and the balance drifts with it; *Clamp boron*
-  holds the glaze's B₂O₃ while the Stull point moves. The UMF panel tints the values a
-  clamp is holding — B₂O₃ and the R₂O:RO tile; entries without one stay plain.
+  holds the glaze's B₂O₃ while the Stull point moves. Every clamp tints what it holds: the
+  UMF panel marks the values — B₂O₃, and the oxides the additions bring while the switch
+  holds them by unity — the R₂O:RO clamp marks its ratio tile, and the recipe list marks
+  the additions' numbers in the amount state. Untouched values stay plain.
 - **History & transfer** — session checkpoints with one-click restore, JSON export, and
   share links that encode the recipe right in the URL — importing accepts a pasted link
   or code.
