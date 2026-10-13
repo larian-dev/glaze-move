@@ -915,6 +915,38 @@
     }
   ],
   "local": false
+},
+{
+  "id": "38",
+  "name": "Оксид хрома, Cr2O3",
+  "density": 0,
+  "region": "world",
+  "price": 0,
+  "loi": 0,
+  "type": "colorant",
+  "components": [
+    {
+      "oxide": "Cr2O3",
+      "amount": 100
+    }
+  ],
+  "local": false
+},
+{
+  "id": "39",
+  "name": "Оксид меди, CuO",
+  "density": 0,
+  "region": "world",
+  "price": 0,
+  "loi": 0,
+  "type": "colorant",
+  "components": [
+    {
+      "oxide": "CuO",
+      "amount": 100
+    }
+  ],
+  "local": false
 }
     ]
 }

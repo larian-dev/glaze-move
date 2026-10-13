@@ -89,11 +89,14 @@ function materialIndexOf(state: FormState): MaterialIndex {
  * link is present.
  */
 const DEFAULT_RECIPE: RecipeRow[] = [
-  { materialId: '2', amount: 40, kind: 'main' },
-  { materialId: '1', amount: 30, kind: 'main' },
-  { materialId: '4', amount: 20, kind: 'main' },
-  { materialId: '3', amount: 10, kind: 'main' },
-  { materialId: '16', amount: 10, kind: 'additional' },
+  { materialId: '1', amount: 40.5, kind: 'main' },
+  { materialId: '2', amount: 36, kind: 'main' },
+  { materialId: '3', amount: 15, kind: 'main' },
+  { materialId: '5', amount: 8.5, kind: 'main' },
+  { materialId: '15', amount: 4, kind: 'additional' },
+  { materialId: '38', amount: 0.4, kind: 'additional' },
+  { materialId: '39', amount: 0.5, kind: 'additional' },
+  { materialId: '37', amount: 1, kind: 'additional' },
 ];
 
 /** The additions clamp's three states, in cycle order, and the label each one
