@@ -75,14 +75,14 @@
             "loi": 0,
             "type": 4,
             "components": [
-                {"oxide": "B2O3", "amount": 57.36},
-                {"oxide": "SiO2", "amount": 5.33},
-                {"oxide": "CaO", "amount": 27.05},
-                {"oxide": "Na2O", "amount": 5.79},
-                {"oxide": "MgO", "amount": 2.88},
-                {"oxide": "SrO", "amount": 1.43},
-                {"oxide": "Al2O3", "amount": 0.09},
-                {"oxide": "Fe2O3", "amount": 0.05}
+                {"oxide": "B2O3", "amount": 37.26},
+                {"oxide": "SiO2", "amount": 3.46},
+                {"oxide": "CaO", "amount": 17.57},
+                {"oxide": "Na2O", "amount": 3.76},
+                {"oxide": "MgO", "amount": 1.87},
+                {"oxide": "SrO", "amount": 0.95},
+                {"oxide": "Al2O3", "amount": 0.06},
+                {"oxide": "Fe2O3", "amount": 0}
             ],
             "local": false
         },
