@@ -173,7 +173,7 @@ const ru: Record<keyof typeof en, string> = {
   'stull.clampBoron': 'Закрепить бор по Зегеру',
   'recipe.material': 'Материал',
   'recipe.materialPlaceholder': 'Выберите материал',
-  'recipe.amount': 'Количество',
+  'recipe.amount': 'Кол-во',
   'recipe.to100': 'К 100%',
   'recipe.addRow': 'Добавить',
   'recipe.remove': 'Удалить',

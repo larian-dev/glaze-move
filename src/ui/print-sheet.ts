@@ -199,7 +199,7 @@ export function createPrintPanel(container: HTMLElement, options: PrintPanelOpti
 
   container.replaceChildren(
     el('div', { class: 'print-controls' }, [
-      el('label', { class: 'print-weight' }, [caption, input]),
+      el('label', { class: 'print-weight-field' }, [caption, input]),
       button,
     ]),
     status,

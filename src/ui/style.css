@@ -817,7 +817,7 @@ h3 {
   gap: 10px;
 }
 
-.print-weight {
+.print-weight-field {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -911,9 +911,17 @@ h3 {
 .print-table {
   width: 100%;
   /* Fixed layout with the widths on <col>: auto layout parks the table's spare
-     width in front of the last column, leaving the tick cells adrift. */
+     width in front of the last column, leaving the tick cells adrift.
+     Borders are separate, no spacing: the frame comes from the table's top and
+     left, every cell draws its own right and bottom. Collapsed borders are
+     snapped to the grid and then painted half-inked on either side of the snap,
+     so at preview scales (and in a 1:1 PDF render) single rules wash out grey
+     and read as missing lines. */
   table-layout: fixed;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-top: 2px solid #000000;
+  border-left: 2px solid #000000;
   font-size: 11pt;
 }
 
@@ -930,12 +938,24 @@ h3 {
   width: 14mm;
 }
 
+/* Rules are 2px, not 1px. Border widths are quantised to whole CSS pixels, so
+   a 1px rule split across two pixel rows inks each row about half — in the
+   print dialog, which fits the page to the window, those rules turn pale and
+   read as missing, and which ones depends on where the line happens to fall.
+   2px always fills a whole pixel at any scale. */
 .print-table th,
 .print-table td {
-  border: 1px solid #000000;
+  border: 0;
+  border-right: 1px solid #000000;
+  border-bottom: 1px solid #000000;
   padding: 1.4mm 2mm;
   text-align: left;
   vertical-align: middle;
+}
+
+/* A row left whole, so a page break can never cut its rules in half. */
+.print-table tr {
+  break-inside: avoid;
 }
 
 /* The heading row of a section: it spans the table and names what is below. */
@@ -962,12 +982,13 @@ h3 {
   text-align: center;
 }
 
-/* The empty box the user ticks — or writes the weighed amount in — by hand. */
+/* The empty box the user ticks — or writes the weighed amount in — by hand.
+   Same 2px rule as the grid: at 1px the box washed out with the faint lines. */
 .print-tick-box {
   display: inline-block;
   width: 6mm;
   height: 6mm;
-  border: 1px solid #000000;
+  border: 2px solid #000000;
   vertical-align: middle;
 }
 

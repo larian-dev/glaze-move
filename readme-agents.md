@@ -76,10 +76,13 @@ no backend, no account, no network traffic.
   number reads as its share of the base — the reading `renormalizeRecipe` gives it — and
   the base's lines sum to the typed weight; a recipe with no base prints the amounts
   alone. The sheet's QR encodes the share link (`uqr`, ECC M, falling back to L), drawn
-  as one SVG path with the spec's 4-module quiet zone. It lives in `<body>` only while
-  the dialog reads it: the print rules in `style.css` hand the page to it while
-  `body.printing` is set (`src/ui/print-sheet.ts`), and a Ctrl+P without a sheet prints
-  the app as before.
+  as one SVG path with the spec's 4-module quiet zone. The grid is separate, single-owner
+  rules at 2px — frame on the table's top/left, right/bottom on every cell — because
+  Chrome quantises border widths to whole CSS px and snaps collapsed grid lines: a 1px
+  collapsed rule splits across two pixel rows, half inked on each, and reads as a missing
+  line at preview scales. The sheet lives in `<body>` only while the dialog reads it: the
+  print rules in `style.css` hand the page to it while `body.printing` is set
+  (`src/ui/print-sheet.ts`), and a Ctrl+P without a sheet prints the app as before.
 - **Debug output** — the drag solve, the zone scan and the page state each log one console
   line when the flag is on: `?debug=1` in the URL, or `localStorage['glaze-calc.debug'] = '1'`
   (read per call, so no reload is needed). `[glaze-calc solve]` carries the target, the
