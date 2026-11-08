@@ -296,6 +296,26 @@
         "meltpoint": 1369,
         "meltability": 0.8,
         "cte": 0.55
+      },
+      {
+        "formula": "MoO3",
+        "displayName": "Molybdenum VI oxide",        
+        "umfType": "Other",
+        "mw":143.94,
+        "density": 4.7,
+        "meltpoint": 1068,
+        "meltability": 0.8,
+        "cte": 0.78
+      },
+      {
+        "formula": "MoO2",
+        "displayName": "Molybdenum IV oxide",        
+        "umfType": "Other",
+        "mw":127.94,
+        "density": 6.47,
+        "meltpoint": 2200,
+        "meltability": 0.8,
+        "cte": 0.78
       }
     ]
   }
