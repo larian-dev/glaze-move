@@ -9,11 +9,11 @@
             "loi": 1,
             "type": 0,
             "components": [
-                {"oxide": "SiO2", "amount": 62.93},
-                {"oxide": "Al2O3", "amount": 20.33},
-                {"oxide": "Na2O", "amount": 7.09},
-                {"oxide": "K2O", "amount": 7.57}
-            ],
+				{"oxide": "SiO2","amount": 64.27},
+				{"oxide": "Al2O3","amount": 20.76},
+				{"oxide": "Na2O","amount": 7.24},
+				{"oxide": "K2O","amount": 7.73}
+			],
             "local": false
         },
         {
@@ -75,15 +75,39 @@
             "loi": 0,
             "type": 4,
             "components": [
-                {"oxide": "B2O3", "amount": 37.26},
-                {"oxide": "SiO2", "amount": 3.46},
-                {"oxide": "CaO", "amount": 17.57},
-                {"oxide": "Na2O", "amount": 3.76},
-                {"oxide": "MgO", "amount": 1.87},
-                {"oxide": "SrO", "amount": 0.95},
-                {"oxide": "Al2O3", "amount": 0.06},
-                {"oxide": "Fe2O3", "amount": 0}
-            ],
+    {
+      "oxide": "SiO2",
+      "amount": 3.46
+    },
+    {
+      "oxide": "Al2O3",
+      "amount": 0.06
+    },
+    {
+      "oxide": "B2O3",
+      "amount": 37.26
+    },
+    {
+      "oxide": "Na2O",
+      "amount": 3.76
+    },
+    {
+      "oxide": "CaO",
+      "amount": 17.57
+    },
+    {
+      "oxide": "SrO",
+      "amount": 0.95
+    },
+    {
+      "oxide": "MgO",
+      "amount": 1.87
+    },
+    {
+      "oxide": "Fe2O3",
+      "amount": 0.03
+    }
+  ],
             "local": false
         },
         {
@@ -558,7 +582,7 @@
   "type": "other",
   "components": [
     {
-      "oxide": "MnO",
+      "oxide": "MnO2",
       "amount": 61.62
     }
   ],
@@ -947,6 +971,22 @@
     }
   ],
   "local": false
+},
+{
+  "id": "40",
+  "name": "Дисульфид молибдена",
+  "density": 0,
+  "region": "Russia",
+  "price": 0.01,
+  "loi": 0,
+  "type": "other",
+  "components": [
+    {
+      "oxide": "MoO3",
+      "amount": 60
+    }
+  ],
+  "local": true
 }
     ]
 }

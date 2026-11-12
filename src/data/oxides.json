@@ -134,11 +134,22 @@
       },
       {
         "formula": "MnO",
-        "displayName": "Manganese",
+        "displayName": "Manganese Oxide",
         
         "umfType": "RO",
         "mw": 70.94,
         "density": 5.45,
+        "meltpoint": 1650,
+        "meltability": 0.8,
+        "cte": 1.05
+      },
+	  {
+        "formula": "MnO2",
+        "displayName": "Manganese Dioxide",
+        
+        "umfType": "RO",
+        "mw": 86.94,
+        "density": 5.02,
         "meltpoint": 1650,
         "meltability": 0.8,
         "cte": 1.05
