@@ -17,22 +17,19 @@ Inspired by and built on the published work of [calc.portalkeramiki.ru](https://
   SiO₂:Al₂O₃ ratio, thermal expansion (CTE), an estimated firing temperature, cost per kg
   and loss on ignition.
 - **Stull map** — drag the point (mouse, touch or arrow keys) to a SiO₂/Al₂O₃ target. The
-  solver refits the recipe and writes the base back at exactly 100%. The dashed outline
-  shows where a drag lands; the hatched band outside it marks targets that would empty a
-  component.
+  target recipe is the starting glaze with the new Si/Al values; every other UMF value
+  must stay within the tolerance field (0.01 by default, editable in the Stull header).
+  The solver refits the recipe and writes the base back at exactly 100%. The dashed
+  outline shows where a drag lands. A component may drop to zero; it stays in the recipe,
+  and the app suggests a material to add to the base when that happens.
 - **Triaxial and boron maps** — the recipe plotted on published reference diagrams; the
   triaxial map zooms 1–8× under the wheel (shift-drag pans, ± / 0 from the keyboard); the
   boron map's vertical axis is cone-stepped (Orton cones Δ06–Δ10), not linear °C.
-- **Drag clamps** — the *Additions* switch cycles three ways: **amount** holds every
-  addition's number, so a drag rewrites the base around it; **unity** holds its share of the
-  flux instead — its contribution to the unity formula — so its amount follows the batch;
-  **free** leaves the additions to the solver. *Clamp flux ratio* holds the R₂O:RO
-  balance where it is — a drag that would shift it is refused; off, the freedom goes into
-  moving the recipe as little as possible and the balance drifts with it; *Clamp boron*
-  holds the glaze's B₂O₃ while the Stull point moves. Every clamp tints what it holds: the
-  UMF panel marks the values — B₂O₃, and the oxides the additions bring while the switch
-  holds them by unity — the R₂O:RO clamp marks its ratio tile, and the recipe list marks
-  the additions' numbers in the amount state. Untouched values stay plain.
+- **Drag clamps** — the *Additions* switch cycles two ways: **unity** holds each
+  addition's share of the flux — its contribution to the unity formula — within the UMF
+  tolerance, so its amount follows the batch; **free** leaves the additions to the solver.
+  The UMF panel tints the oxides the additions bring while the switch holds them by unity.
+  Untouched values stay plain.
 - **History & transfer** — session checkpoints with one-click restore, JSON export, and
   share links that encode the recipe right in the URL — importing accepts a pasted link
   or code.
@@ -88,21 +85,16 @@ line. Materials you add yourself are stored in your browser only.
   цена за кг и потери при прокаливании (ППП).
 - **Диаграмма Сталла** — перетащите точку (мышью, касанием или стрелками) к цели по
   SiO₂/Al₂O₃. Решатель пересчитает рецепт и запишет базу ровно на 100%. Пунктирный
-  контур показывает, куда перенос проходит; штриховка снаружи — цели, при которых
-  компонент ушёл бы в ноль.
+  контур показывает, куда перенос проходит; компонент может уйти в ноль и остаётся в
+  рецепте.
 - **Троичная диаграмма и диаграмма бора** — рецепт на опубликованных справочных
   диаграммах; троичная диаграмма масштабируется колесом 1–8× (Shift-перетаскивание —
   панорама, ± / 0 — с клавиатуры); вертикальная ось диаграммы бора идёт по конусам
   (ортоновские конусы Δ06–Δ10), а не по линейным °C.
-- **Фиксаторы при перетаскивании** — переключатель «Добавки» проходит три состояния:
-  «количество» удерживает введённое число каждой добавки, и перенос переписывает только
-  базу; «формула Зегера» удерживает её долю флюса — вклад добавки в формулу, — так что её
-  количество следует за шихтой; «свободно» отдаёт добавки решателю. «Фиксировать
-  соотношение флюсов» удерживает баланс R₂O:RO — перенос, сдвигающий его, отвергается;
-  без фиксатора свобода уходит на минимальное изменение рецепта, и баланс смещается
-  вместе с ним; «Фиксировать бор» удерживает B₂O₃ глазури, пока точка Стулла движется.
-  Значения, удерживаемые фиксаторами, подсвечены зелёным в таблице формулы (B₂O₃ и
-  плитка R₂O:RO); без фиксатора строка остаётся без подсветки.
+- **Фиксаторы при перетаскивании** — переключатель «Добавки» проходит два состояния:
+  «формула Зегера» удерживает долю флюса каждой добавки — её вклад в формулу — в пределах
+  допуска UMF, так что её количество следует за шихтой; «свободно» отдаёт добавки
+  решателю. Значения, удерживаемые фиксатором, подсвечены зелёным в таблице формулы.
 - **История и обмен данными** — контрольные точки сессии с восстановлением в один
   клик, экспорт JSON и ссылки, кодирующие рецепт прямо в URL; импорт принимает
   вставленную ссылку или код.

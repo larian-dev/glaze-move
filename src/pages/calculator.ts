@@ -33,7 +33,7 @@ import {
   triaxialAxes,
   unityFormula,
 } from '../core';
-import type { AdditionClamp, SolveRejection } from '../core';
+import type { AdditionClamp, SolveRejection, SolveResult } from '../core';
 import { OXIDE_BY_FORMULA, SYSTEM_MATERIALS, materialIndex } from '../data/catalog';
 import { debugLog, debugRows } from '../debug';
 import { t } from '../i18n';
@@ -54,7 +54,7 @@ import type { PersistedForm } from '../state/persistence';
 import type { Material, MaterialIndex, RecipeRow } from '../types';
 import { createChangeHistory, createPrintPanel, createRecipeEditor, createResults, el, setText } from '../ui';
 import type { ResultsValues, UnitDisplay } from '../ui';
-import { cycleToggle, switchToggle } from '../ui/dom';
+import { cycleToggle } from '../ui/dom';
 
 export type CalculatorPage = {
   setLang: (lang: Lang) => void;
@@ -100,11 +100,10 @@ const DEFAULT_RECIPE: RecipeRow[] = [
   { materialId: '37', amount: 1, kind: 'additional' },
 ];
 
-/** The additions clamp's three states, in cycle order, and the label each one
+/** The additions clamp's two states, in cycle order, and the label each one
  *  shows: the switch names the state it is in, so the row needs no legend. */
-const ADDITION_CLAMPS: readonly AdditionClamp[] = ['amount', 'unity', 'free'];
+const ADDITION_CLAMPS: readonly AdditionClamp[] = ['unity', 'free'];
 const additionClampKeys: Record<AdditionClamp, TranslationKey> = {
-  amount: 'stull.clampAmount',
   unity: 'stull.clampUnity',
   free: 'stull.clampFree',
 };
@@ -130,9 +129,8 @@ function initialState(lang: Lang, materials: Material[]): FormState {
     lang,
     roFlux: stored?.roFlux ?? '',
     includeAdditions: stored?.includeAdditions ?? DEFAULT_FORM.includeAdditions,
-    clampFluxRatio: stored?.clampFluxRatio ?? DEFAULT_FORM.clampFluxRatio,
     additionClamp: stored?.additionClamp ?? DEFAULT_FORM.additionClamp,
-    clampBoron: stored?.clampBoron ?? DEFAULT_FORM.clampBoron,
+    umfTolerance: stored?.umfTolerance ?? DEFAULT_FORM.umfTolerance,
     materials,
   };
 }
@@ -144,9 +142,8 @@ function persistable(state: FormState): PersistedForm {
     lang: state.lang,
     roFlux: state.roFlux,
     includeAdditions: state.includeAdditions,
-    clampFluxRatio: state.clampFluxRatio,
     additionClamp: state.additionClamp,
-    clampBoron: state.clampBoron,
+    umfTolerance: state.umfTolerance,
   };
 }
 
@@ -154,12 +151,21 @@ function snapbackKey(reason: SolveRejection): TranslationKey {
   return `stull.snapback.${reason}`;
 }
 
+/** The snap-back message, with the tolerance spelled out when that is what the
+ *  drag broke. */
+function rejectionNotice(state: FormState, reason: SolveRejection): string {
+  if (reason === 'umf-drift') {
+    return t(state.lang, 'stull.snapback.umf-drift', { tolerance: state.umfTolerance });
+  }
+  return t(state.lang, snapbackKey(reason));
+}
+
 /**
- * The unity entries a drag leaves where they are: the batch's B₂O₃ while the
- * boron clamp is on, and — while the additions clamp holds them by unity —
- * every oxide the additions bring, since an addition that keeps its share of
- * the flux keeps its contribution to every value it touches. Entries the
- * recipe does not have are never asked for: the panel tints what it draws.
+ * The unity entries a drag leaves where they are: while the additions clamp
+ * holds them by unity, every oxide the additions bring, since an addition that
+ * keeps its share of the flux keeps its contribution to every value it touches.
+ * Entries the recipe does not have are never asked for: the panel tints what it
+ * draws.
  */
 function clampedEntries(
   state: FormState,
@@ -167,7 +173,6 @@ function clampedEntries(
   moles: Map<string, number>,
 ): Record<string, true> {
   const clamped: Record<string, true> = {};
-  if (state.clampBoron && (moles.get('B2O3') ?? 0) > 0) clamped.B2O3 = true;
   // The additions' unity values live in the displayed chemistry only: with the
   // UMF switch off the additions are not in the formula at all.
   if (state.additionClamp === 'unity' && state.includeAdditions) {
@@ -217,9 +222,8 @@ function compute(state: FormState, materials: MaterialIndex, zoom: Domain | null
   const chartRows = state.includeAdditions ? state.rows : mainRows;
   const solveOptions = {
     includeAdditions: state.includeAdditions,
-    clampFluxRatio: state.clampFluxRatio,
     additionClamp: state.additionClamp,
-    clampBoron: state.clampBoron,
+    umfTolerance: state.umfTolerance,
   };
 
   const massPercent = batchMassPercent(chemRows, materials);
@@ -242,7 +246,6 @@ function compute(state: FormState, materials: MaterialIndex, zoom: Domain | null
     // its ratio tile instead, and the additions clamp by amount tints the
     // numbers in the recipe list.
     clamped: clampedEntries(state, materials, moles),
-    clampedFluxRatio: state.clampFluxRatio,
   };
 
   const chartMoles = batchMoles(chartRows, materials, OXIDE_BY_FORMULA);
@@ -254,8 +257,7 @@ function compute(state: FormState, materials: MaterialIndex, zoom: Domain | null
     switches: {
       inUmf: state.includeAdditions,
       additions: state.additionClamp,
-      fluxRatio: state.clampFluxRatio,
-      boron: state.clampBoron,
+      umfTolerance: state.umfTolerance,
     },
     rows: debugRows(state.rows),
     point: point ? `${point.x.toFixed(3)}/${point.y.toFixed(3)}` : 'none',
@@ -357,23 +359,37 @@ export function renderCalculatorPage(
 
   // The drag solver's switches live with the chart they govern: they decide
   // what the solve — and therefore the dashed hull — is allowed to do. The
-  // additions clamp is one switch in three states, its label naming the state.
-  const clampSwitch = switchToggle(
-    () => state.get().clampFluxRatio,
-    t(lang, 'stull.clampFluxRatio'),
-    (value) => state.set({ clampFluxRatio: value }),
-  );
+  // additions clamp is one switch in two states, its label naming the state.
   const clampAdditionsToggle = cycleToggle(
     ADDITION_CLAMPS,
     () => state.get().additionClamp,
     (value) => t(lang, additionClampKeys[value]),
     (value) => state.set({ additionClamp: value }),
   );
-  const clampBoronSwitch = switchToggle(
-    () => state.get().clampBoron,
-    t(lang, 'stull.clampBoron'),
-    (value) => state.set({ clampBoron: value }),
-  );
+  // The drag's UMF tolerance: the target recipe is the starting glaze with the
+  // new Si/Al values, and every other unity value must stay within this
+  // distance. Committed on change, not on every keystroke — each commit
+  // re-scans the reachable zone.
+  const toleranceLabel = el('span', { class: 'tolerance-label', text: t(lang, 'stull.umfTolerance') });
+  const toleranceInput = el('input', {
+    type: 'number',
+    class: 'tolerance-input',
+    value: String(state.get().umfTolerance),
+    attrs: {
+      min: '0',
+      step: '0.001',
+      'aria-label': t(lang, 'stull.umfTolerance'),
+    },
+  });
+  toleranceInput.addEventListener('change', () => {
+    const value = Number(toleranceInput.value);
+    if (toleranceInput.value.trim() === '' || !Number.isFinite(value) || value < 0) {
+      toleranceInput.value = String(state.get().umfTolerance);
+      return;
+    }
+    state.set({ umfTolerance: value });
+  });
+  const toleranceField = el('label', { class: 'tolerance-field' }, [toleranceLabel, toleranceInput]);
   // One panel, three maps: the tab labels are the charts' names, and each view
   // keeps its own tools, hint and notice. Only the active view is in the
   // document flow, so a drag can never land on a hidden map.
@@ -415,7 +431,10 @@ export function renderCalculatorPage(
         attrs: { role: 'tabpanel', id: 'chart-view-stull', 'aria-labelledby': 'chart-tab-stull' },
       },
       [
-        el('div', { class: 'panel-head' }, [clampSwitch, clampAdditionsToggle, clampBoronSwitch]),
+        el('div', { class: 'panel-head panel-head--stull' }, [
+          clampAdditionsToggle,
+          toleranceField,
+        ]),
         stullHint,
         stullChart,
         stullNotice,
@@ -522,7 +541,6 @@ export function renderCalculatorPage(
     materials,
     lang,
     includeAdditions: state.get().includeAdditions,
-    additionClamp: state.get().additionClamp,
     onChange: (rows) => {
       // Structural edits — a row added, removed, or pointed at another material:
       // persisted and recomputed, but no checkpoint. Half-built rows would
@@ -603,7 +621,6 @@ function paintRoTools(): void {
       clearNotice();
     }
     results.update(computed.values);
-    editor.setAdditionClamp(state.get().additionClamp);
     paintRoTools();
     paintBoron();
     adapter?.updateStull(computed.stull);
@@ -613,17 +630,6 @@ function paintRoTools(): void {
 
   function clearNotice(): void {
     setText(stullNotice, '');
-  }
-
-  /**
-   * Names the materials a solve emptied, in recipe order. Falls back to the raw
-   * id if a row ever points at a material the index does not know.
-   */
-  function emptiedNames(rows: RecipeRow[], emptied: number[]): string[] {
-    return emptied.map((index) => {
-      const id = rows[index]?.materialId ?? '';
-      return materials.get(id)?.name || id;
-    });
   }
 
   /**
@@ -640,13 +646,37 @@ function paintRoTools(): void {
     adapter?.updateStull(computed.stull);
   }
 
-  /** The "this would drop to zero" message for a drag refused at the empties. */
-  function emptiedNotice(snapshot: FormState, emptied: number[]): string {
-    const names = emptiedNames(snapshot.rows, emptied);
-    return t(snapshot.lang, names.length === 1 ? 'stull.emptied' : 'stull.emptiedMany', {
-      material: names[0] ?? '',
-      materials: names.join(', '),
-    });
+  /**
+   * Searches for a recipe edit that makes the target reachable without emptying
+   * a row: first a main-row addition from the material database, then removing
+   * an existing component. The recipe is not changed.
+   */
+  function suggestFix(
+    rows: RecipeRow[],
+    attempt: (rows: RecipeRow[]) => SolveResult,
+  ): { kind: 'add' | 'remove'; material: string } | null {
+    const present = new Set(rows.map((row) => row.materialId));
+    for (const material of materials.values()) {
+      if (present.has(material.id)) continue;
+      for (const amount of [1, 5, 10, 20]) {
+        const result = attempt([...rows, { materialId: material.id, amount, kind: 'main' }]);
+        if (result.ok && result.emptied.length === 0) {
+          return { kind: 'add', material: material.name || material.id };
+        }
+      }
+    }
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      if (!row || row.amount <= 0) continue;
+      const result = attempt(rows.filter((_, i) => i !== index));
+      if (result.ok && result.emptied.length === 0) {
+        return {
+          kind: 'remove',
+          material: materials.get(row.materialId)?.name || row.materialId,
+        };
+      }
+    }
+    return null;
   }
 
   /** Writes a solved refit: persisted, checkpointed and recorded — and the
@@ -668,28 +698,45 @@ function paintRoTools(): void {
   function onStullTarget(target: Pt): void {
     const snapshot = state.get();
     clearNotice();
-    const solved = solveForStullTarget(snapshot.rows, materials, target, {
+    const options = {
       includeAdditions: snapshot.includeAdditions,
-      clampFluxRatio: snapshot.clampFluxRatio,
       additionClamp: snapshot.additionClamp,
-      clampBoron: snapshot.clampBoron,
-    });
+      umfTolerance: snapshot.umfTolerance,
+    };
+    const solved = solveForStullTarget(snapshot.rows, materials, target, options);
 
     if (!solved.ok) {
-      rejectStullDrag(t(snapshot.lang, snapbackKey(solved.reason)));
+      const fix = suggestFix(snapshot.rows, (rows) =>
+        solveForStullTarget(rows, materials, target, options),
+      );
+      if (fix) {
+        rejectStullDrag(
+          t(snapshot.lang, fix.kind === 'add' ? 'stull.suggestAdd' : 'stull.suggestRemove', {
+            material: fix.material,
+          }),
+        );
+        return;
+      }
+      rejectStullDrag(rejectionNotice(snapshot, solved.reason));
       return;
     }
 
-    if (solved.emptied.length > 0) {
-      // Reachable, but only by clamping a carrier onto the closed end of its
-      // interval — which drops that material out of the base. Refused for the
-      // same reason the region leaves it out: the user should not lose a material
-      // to a drag they read as a reposition.
-      rejectStullDrag(emptiedNotice(snapshot, solved.emptied));
-      return;
-    }
-
+    // A row driven to zero is allowed: it stays in the recipe at zero. If the
+    // move needed that, offer an edit that would keep it in the base.
     commitSolved(solved.rows);
+    if (solved.emptied.length > 0) {
+      const fix = suggestFix(snapshot.rows, (rows) =>
+        solveForStullTarget(rows, materials, target, options),
+      );
+      if (fix) {
+        setText(
+          stullNotice,
+          t(snapshot.lang, fix.kind === 'add' ? 'stull.suggestAdd' : 'stull.suggestRemove', {
+            material: fix.material,
+          }),
+        );
+      }
+    }
   }
 
   /** The triaxial map's drag: the point is the (SiO₂, Al₂O₃, RO) split of the
@@ -701,26 +748,47 @@ function paintRoTools(): void {
     setText(triaxialNotice, '');
     const roFlux = computed.roSelected;
     if (roFlux === null) return;
+    const axes = triaxialAxes(roFlux);
+    const options = {
+      includeAdditions: snapshot.includeAdditions,
+      additionClamp: snapshot.additionClamp,
+      umfTolerance: snapshot.umfTolerance,
+    };
     const solved = solveForTarget(
       snapshot.rows,
       materials,
-      { ...triaxialAxes(roFlux), x: target.sio2, y: target.al2o3 },
-      {
-        includeAdditions: snapshot.includeAdditions,
-        clampFluxRatio: snapshot.clampFluxRatio,
-        additionClamp: snapshot.additionClamp,
-        clampBoron: snapshot.clampBoron,
-      },
+      { ...axes, x: target.sio2, y: target.al2o3 },
+      options,
     );
     if (!solved.ok) {
-      rejectTriaxialDrag(t(snapshot.lang, snapbackKey(solved.reason)));
-      return;
-    }
-    if (solved.emptied.length > 0) {
-      rejectTriaxialDrag(emptiedNotice(snapshot, solved.emptied));
+      const fix = suggestFix(snapshot.rows, (rows) =>
+        solveForTarget(rows, materials, { ...axes, x: target.sio2, y: target.al2o3 }, options),
+      );
+      if (fix) {
+        rejectTriaxialDrag(
+          t(snapshot.lang, fix.kind === 'add' ? 'stull.suggestAdd' : 'stull.suggestRemove', {
+            material: fix.material,
+          }),
+        );
+        return;
+      }
+      rejectTriaxialDrag(rejectionNotice(snapshot, solved.reason));
       return;
     }
     commitSolved(solved.rows);
+    if (solved.emptied.length > 0) {
+      const fix = suggestFix(snapshot.rows, (rows) =>
+        solveForTarget(rows, materials, { ...axes, x: target.sio2, y: target.al2o3 }, options),
+      );
+      if (fix) {
+        setText(
+          triaxialNotice,
+          t(snapshot.lang, fix.kind === 'add' ? 'stull.suggestAdd' : 'stull.suggestRemove', {
+            material: fix.material,
+          }),
+        );
+      }
+    }
   }
 
   const interaction: StullInteraction = {
@@ -786,13 +854,9 @@ function paintRoTools(): void {
     for (const key of tabKeys) setText(tabButtons[key], t(next, tabLabel[key]));
     chartTabs.setAttribute('aria-label', t(next, 'charts.label'));
     setText(stullHint, t(next, 'stull.hint'));
-    clampSwitch.setAttribute('aria-label', t(next, 'stull.clampFluxRatio'));
-    const clampLabel = clampSwitch.querySelector('.recipe-toggle-label');
-    if (clampLabel) setText(clampLabel, t(next, 'stull.clampFluxRatio'));
     setText(clampAdditionsToggle, t(next, additionClampKeys[state.get().additionClamp]));
-    clampBoronSwitch.setAttribute('aria-label', t(next, 'stull.clampBoron'));
-    const boronLabel = clampBoronSwitch.querySelector('.recipe-toggle-label');
-    if (boronLabel) setText(boronLabel, t(next, 'stull.clampBoron'));
+    setText(toleranceLabel, t(next, 'stull.umfTolerance'));
+    toleranceInput.setAttribute('aria-label', t(next, 'stull.umfTolerance'));
     setText(triaxialHint, t(next, 'triaxial.hint'));
     setText(boronHint, t(next, 'boron.hint'));
     setText(transferTitle, t(next, 'transfer.title'));

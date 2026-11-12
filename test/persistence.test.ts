@@ -113,9 +113,8 @@ describe('stored form', () => {
       lang: 'ru',
       roFlux: 'MgO',
       includeAdditions: false,
-      clampFluxRatio: true,
       additionClamp: 'free',
-      clampBoron: true,
+      umfTolerance: 0.02,
     };
     saveForm(form);
     expect(loadForm()).toEqual(form);
@@ -143,9 +142,8 @@ describe('stored form', () => {
       lang: 'en',
       roFlux: 'CaO',
       includeAdditions: true,
-      clampFluxRatio: false,
-      additionClamp: 'amount',
-      clampBoron: false,
+      additionClamp: 'unity',
+      umfTolerance: 0.01,
     });
   });
 
@@ -166,7 +164,6 @@ describe('stored form', () => {
     );
     const loaded = loadForm();
     expect(loaded?.additionClamp).toBe('free');
-    expect(loaded?.clampFluxRatio).toBe(false);
     // Per-row flags are gone: the clamp is one switch for all additions.
     expect(loaded?.rows).toEqual([
       { materialId: 'a', amount: 40, kind: 'main' },
@@ -178,17 +175,17 @@ describe('stored form', () => {
       FORM_KEY,
       JSON.stringify({ rows: [{ materialId: 'b', amount: 3, kind: 'additional' }] }),
     );
-    expect(loadForm()?.additionClamp).toBe('amount');
+    expect(loadForm()?.additionClamp).toBe('unity');
   });
 
-  it('carries a boolean additions clamp onto the three-way one', () => {
-    // Forms written before the unity hold stored a switch: `true` held the
-    // amounts, `false` left them free. A stored mode always wins over both.
+  it('carries a boolean additions clamp onto the two-way one', () => {
+    // Forms written before the unity hold stored a switch: `true` locked,
+    // `false` ignored. A stored mode always wins over both.
     localStorage.setItem(FORM_KEY, JSON.stringify({ rows: [], clampAdditions: false }));
     expect(loadForm()?.additionClamp).toBe('free');
 
     localStorage.setItem(FORM_KEY, JSON.stringify({ rows: [], clampAdditions: true }));
-    expect(loadForm()?.additionClamp).toBe('amount');
+    expect(loadForm()?.additionClamp).toBe('unity');
 
     localStorage.setItem(
       FORM_KEY,
@@ -197,7 +194,7 @@ describe('stored form', () => {
     expect(loadForm()?.additionClamp).toBe('unity');
 
     localStorage.setItem(FORM_KEY, JSON.stringify({ rows: [], additionClamp: 'nonsense' }));
-    expect(loadForm()?.additionClamp).toBe('amount');
+    expect(loadForm()?.additionClamp).toBe('unity');
   });
 
   it('keeps counting additions for a stored form written before the toggle', () => {
@@ -222,7 +219,7 @@ describe('stored form', () => {
     );
     const loaded = loadForm();
     expect(loaded?.rows).toEqual([{ materialId: 'a', amount: 40, kind: 'additional' }]);
-    expect(loaded?.additionClamp).toBe('amount');
+    expect(loaded?.additionClamp).toBe('unity');
   });
 
   it('clamps negative amounts read from localStorage', () => {

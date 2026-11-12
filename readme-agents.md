@@ -21,34 +21,26 @@ no backend, no account, no network traffic.
   handle: drag it to reorder the row, or across the sections to move it between Main and
   Additional; Alt + ↑/↓ makes the same moves from the keyboard. A drag or move is a
   structural edit — persisted and recomputed, but not checkpointed.
-- **Switches** (*In the UMF* in the Additional header; *Clamp flux ratio*, *Additions*
-  and *Clamp boron* in the Stull panel header; all persisted):
+- **Switches** (*In the UMF* in the Additional header; *Additions* and the UMF tolerance
+  field in the Stull panel header; all persisted):
   - *In the UMF* — additions join the calculations: unity formula, mole %, Si/Al, CTE,
     firing temperature, triaxial and boron maps **and the Stull point** — or they don't,
     and everything describes the base alone. This switch alone moves the marker.
-  - *Additions* — one switch in three states, its label naming the state it is in
-    (*amount* by default, then *unity*, then *free*). *amount* pins every addition by its
-    share of the base: a drag rewrites the base and the addition's written number survives
-    it. *unity* pins it by its share of the flux instead, so its contribution to the unity
-    formula survives and its amount follows the batch. *free* leaves the additions in the
-    carrier pool, where the solver may pick and rewrite them while refitting. The switch
-    never moves the displayed point by itself — it only decides what a drag may touch.
-  - *Clamp flux ratio* — the family's free parameter holds the R₂O:RO balance where it was,
-    and a drag that would move it is refused with a notice; off, the freedom goes into
-    moving the written recipe as little as possible, and the balance drifts with it.
-  - *Clamp boron* — a drag holds the batch's unity B₂O₃ where it is, so the boron map's
-    marker stays put while the Stull point moves. The hold costs the fit one mover; a
-    recipe that cannot afford one is refused, and a batch without B₂O₃ clamps nothing.
+  - *Additions* — one switch in two states, its label naming the state it is in
+    (*unity* by default, then *free*). *unity* holds each addition's share of the flux —
+    its contribution to the unity formula — within the UMF tolerance, so its amount
+    follows the batch. *free* leaves the additions in the carrier pool, where the solver
+    may pick and rewrite them while refitting. The switch never moves the displayed point
+    by itself — it only decides what a drag may touch.
   - Cost and LOI ignore all switches; flipping a switch writes no history. The results
-    panel tints the values the enabled clamps are holding — B₂O₃ and the R₂O:RO tile; the
-    additions clamp holds an addition's own amount or flux share rather than an oxide
-    value, so it tints no entry. Entries no clamp holds stay plain.
+    panel tints the oxides the additions bring while the switch holds them by unity.
+    Entries no clamp holds stay plain.
 - **Stull map** — the interactive map: drag the point (mouse/touch, or arrow keys) to a
   SiO₂/Al₂O₃ target; the solver refits the free carriers, holds each addition as the
-  additions switch says, and writes the batch back with the base at exactly 100.00. The dashed
-  outline is traced from the solve grid: inside it a drag lands, the hatched band just
-  outside it marks targets that would empty a component, and beyond that nothing is
-  reachable — the last two snap back with a notice. Scroll zooms 1–8×, shift-drags to pan.
+  additions switch says, and writes the batch back with the base at exactly 100.00. The
+  dashed outline is traced from the solve grid: inside it a drag lands. A component may
+  drop to zero; it stays in the recipe, and the app searches the material database for a
+  main-row addition that would keep it in the base. Scroll zooms 1–8×, shift-drags to pan.
   Regions, labels and the Q-line come from the legacy chart
   (`resources/js/stull-chart-d3.js`, archived locally, not part of the repo),
   grid every 0.6 SiO₂ × 0.1 Al₂O₃.
@@ -168,34 +160,17 @@ and only a pure source moves one axis without dragging the others along — a la
 row out-carries the pure one by sheer amount, freezes it, and leaves the fit steering x by
 destroying flux, which collapses the reachable set to a strip.
 One usable displayed row always stays frozen: with every row inside the fit the equations turn
-homogeneous, the free parameter scales the batch instead of steering the ratio, and a clamp
-has nothing left to spend. The pool the carriers may be picked from is every main
-row plus — while the additions switch is *free* — the additions; every other displayed row freezes
+homogeneous and the free parameter scales the batch instead of steering the point. The pool
+the carriers may be picked from is every main row plus
+every addition that is part of the displayed chemistry; every other displayed row freezes
 into the constants `F` (flux), `S₀` (SiO₂), `A₀` (Al₂O₃) at its entered amount. A row whose
 chemistry copies one already seated is skipped — a duplicate column cannot be solved for and
 would only make the fit singular — and the movers never eat the whole recipe.
 
-A **clamped** addition keeps its whole material: its amount joins the unknowns with one
-**pin** row per addition,
-
-```
-amount = share · Σ main amounts        // share = amount₀ / B₀
-```
-
-where `amount₀` is the addition's entered amount and `B₀` the base total it entered at.
-The pin rides the base total — the figure the write-back normalizes to 100 — so a drag
-rewrites the base around the addition and the addition's written number survives the drag
-exactly. Note what this costs the fit: with only two main carriers the point may move only
-along the curve the mains' ratio traces, since the pin ties the whole batch to one scale.
-
-*Clamp boron* adds one **hold** row over the whole displayed chemistry —
-`Σᵢ amountᵢ · c(B₂O₃)ᵢ = k · F` with `k` the batch's current unity B₂O₃. It weighs on
-amounts that are unknowns already, so it buys no unknown to pay for itself: the fit seats
-one mover for it, and a recipe with no mover to spare is refused as over-constrained. When
-the sole B₂O₃ source is a clamped addition, the frozen amount makes the hold a hold on the
-batch flux as well: the two together leave only the region where the base can take the
-target with its flux unmoved, and a drag outside it is refused. A batch without B₂O₃ has
-nothing to hold.
+The **additions lock** is a tolerance check, not an extra equation. With the additions
+switch on *unity*, each addition's share of the displayed flux must stay within the drag's
+UMF tolerance; *free* leaves that share unconstrained. The lock buys no unknown or mover,
+so it cannot over-constrain the fit.
 
 With `cᵢ = (cᵢs, cᵢa, cᵢf)` per unknown amount `xᵢ`, the target is:
 
@@ -207,55 +182,53 @@ A = [ c₁s − X·c₁f   c₂s − X·c₂f   c₃s − X·c₃f ]     r = [ X
     [ c₁a − Y·c₁f   c₂a − Y·c₂f   c₃a − Y·c₃f ]         [ Y·F − A₀ ]
 ```
 
-There is one column per carrier — three, or two when the recipe has no third — plus one per
-pinned addition, which also adds its own pin row: `amount = share · (Σ main amounts)` for
-the *amount* hold, `amount = fluxShare · F` for the *unity* one. The system is solved by
-elimination: `r`
-rows over `r + 1` unknowns leave the one-parameter family `x(t) = p + t·q`, `p` a particular
-solution and `q` the null direction, so every `t` lands exactly on the target. Where the
-family's freedom goes is the flux ratio switch's business. *Clamp flux ratio* spends it on
-the R₂O:RO balance — along the line the ratio is a Möbius function of `t`, and the `t` that
-restores the starting ratio is closed-form:
+There is one column per carrier — three, or two when the recipe has no third. The system is
+solved by elimination: `r` rows over `r + 1` unknowns leave the one-parameter family
+`x(t) = p + t·q`, `p` a particular solution and `q` the null direction, so every `t` lands
+exactly on the target. The freedom goes where the written recipe changes least: the point
+whose base shares sit closest to the entered ones. The write-back normalizes the base to
+100, so the distance lives there — `X(t)/B(t)` against the entered shares, `B = c + t·d`
+the base total along the family — and it closes the same way:
 
 ```
-t = (baseRatio·D₀ − N₀) / (N₁ − baseRatio·D₁)          // clamp on: restores R₂O:RO
-```
-
-Off, the balance is free to move and the freedom goes where the written recipe changes
-least: the point whose base shares sit closest to the entered ones. The write-back
-normalizes the base to 100, so the distance lives there — `X(t)/B(t)` against the entered
-shares, `B = c + t·d` the base total along the family — and it closes the same way:
-
-```
-cross + t · curvature = 0                              // clamp off: least-change shares
+cross + t · curvature = 0                              // least-change shares
 cross = Σᵢ (pᵢ − Eᵢ·c)·(qᵢ·c − pᵢ·d)     Eᵢ the entered share of row i
 curvature = Σᵢ (qᵢ − Eᵢ·d)·(qᵢ·c − pᵢ·d)  (both free of t; only the base's own rows)
 ```
 
 Either `t` is clamped into `[lo, hi]`, the interval where every amount stays non-negative.
-When as many
-rows as unknowns are present — two carriers, or a pin closing the last degree of freedom —
-the system is solved outright, with no `t` to spend and the ratio whatever the fit makes of
-it. A homogeneous system whose direction carries only one sign is the ray `{t·q}`: any
-multiple with non-negative amounts does.
-With *Clamp flux ratio*, a `t` whose balance differs from the start is refused outright.
+When as many rows as unknowns are present — two carriers — the system is solved outright,
+with no `t` to spend. A homogeneous system whose direction carries only one sign is the ray
+`{t·q}`: any multiple with non-negative amounts does.
+
+The drag's **UMF tolerance** changes what the family's freedom is spent on. The target
+recipe is the starting glaze with the two chart coordinates replaced; every other unity
+value must stay within the tolerance (0.01 by default, editable in the Stull header). When
+the tolerance is set, the solver samples the feasible `t` interval and keeps the point
+whose held unity values move least, instead of the least-change recipe. The written-back
+amounts are then checked against the starting UMF: any held oxide further than the
+tolerance is refused as `umf-drift`. The additions lock uses the same tolerance: a locked
+addition's flux share is checked alongside the oxides. The same check runs for the
+triaxial drag, where the two coordinates are triangle shares rather than UMF values. The
+reachable-zone scan passes the tolerance through, so the dashed outline shrinks to the
+targets that keep the rest of the formula.
 
 Rejected — point snaps back, recipe untouched: fewer than two rows; no flux; no Al₂O₃
 carrier; a fit whose rows are singular against their own scale, or a ray no non-negative
 multiple reaches; an empty
-`t`-interval or an all-zero solution; a final flux total at nothing; more clamps than the
-rows can pay movers for; a row driven to zero (named in the notice); or, flux-clamped, a
-moving ratio. On success the displayed batch — base
-and additions alike — is written back scaled so the base totals exactly 100.00, in whole
-cents with the rounding residual on the largest main row. Every ratio survives that
-scaling, so the point lands on the target, each pinned addition keeps what its pin holds —
-its entered share of the base, or of the flux — and the R₂O:RO balance is the one the fit
-chose. A row outside the displayed chemistry (an addition the
-UMF switch excludes) is left untouched. Everything then recomputes. Arrow keys nudge by
-0.25 SiO₂ / 0.05 Al₂O₃ through the same solve. The two drawn zones are traced from the
-0.2 × 0.05 grid of sampled cell centres — cells the solve fits with nothing emptied form
-the dashed outline, cells it fits only by emptying a row form the hatched band — so a
-region that is thin, curved or non-convex draws as itself rather than as a hull around it.
+`t`-interval or an all-zero solution; a final flux total at nothing; or a held unity value
+or locked addition share further than the UMF tolerance. A row driven to zero is
+**accepted**: it stays in the recipe at zero, and the app searches for a recipe edit — a
+main-row addition or a component removal — that would keep it in the base. On success the
+displayed batch — base and additions alike — is written back scaled so the base totals
+exactly 100.00, in whole cents with the rounding residual on the largest main row. Every
+ratio survives that scaling, so the point lands on the target and each locked addition
+keeps its share of the flux. A row outside the displayed chemistry (an addition the UMF
+switch excludes) is left untouched. Everything then recomputes. Arrow keys nudge by
+0.25 SiO₂ / 0.05 Al₂O₃ through the same solve. The drawn zone is traced from the
+0.2 × 0.05 grid of sampled cell centres — every cell the solve fits belongs to the dashed
+outline, including cells that drive a row to zero — so a region that is thin, curved or
+non-convex draws as itself rather than as a hull around it.
 
 ### Thermal expansion (Appen)
 

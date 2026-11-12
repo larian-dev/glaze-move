@@ -21,8 +21,6 @@ export type ResultsValues = {
    *  they are. The panel tints these entries, so the switch verdicts read on
    *  the formula itself. */
   clamped: Readonly<Record<string, true>>;
-  /** True while the R₂O:RO balance is clamped — that ratio tile is held too. */
-  clampedFluxRatio: boolean;
 };
 
 export type ResultsOptions = {
@@ -88,10 +86,8 @@ function braceCell(column: number, mirrored: boolean): HTMLElement {
   return cell;
 }
 
-function ratioTile(label: string, value: string, clamped = false): HTMLElement {
-  return el('div', {
-    class: clamped ? 'umf-ratio-tile umf-ratio-tile--clamped' : 'umf-ratio-tile',
-  }, [
+function ratioTile(label: string, value: string): HTMLElement {
+  return el('div', { class: 'umf-ratio-tile' }, [
     el('span', { class: 'umf-ratio-label' }, subscripted(label)),
     el('span', { class: 'umf-ratio-value', text: value }),
   ]);
@@ -216,11 +212,7 @@ export function createResults(container: HTMLElement, options: ResultsOptions): 
     const split = fluxSplit(umf, source);
     if (split) {
       tiles.append(
-        ratioTile(
-          'R2O:RO',
-          `${fmtTrim(split[0], 2)} : ${fmtTrim(split[1], 2)}`,
-          values?.clampedFluxRatio === true,
-        ),
+        ratioTile('R2O:RO', `${fmtTrim(split[0], 2)} : ${fmtTrim(split[1], 2)}`),
       );
     }
     const ratio = values?.siAlRatio;

@@ -14,10 +14,10 @@ export type Point = { x: number; y: number };
 export type Outline = Point[];
 
 export type FeasibleAreas = {
-  /** Where a drag lands: the solve fits the target and no movable row empties. */
+  /** Where a drag lands: every target the solve fits, including ones that drive
+   *  a row to zero. */
   draggable: Outline[];
-  /** The band just outside it: the solve fits only by clamping a movable row
-   *  onto zero, so the page refuses the drag and names the material. */
+  /** Kept for the chart's shape; always empty now that a zero row is allowed. */
   emptied: Outline[];
 };
 
@@ -39,7 +39,7 @@ function countCells(cells: boolean[][]): number {
  *  through, minus the per-scan chemistry cache. */
 type ZoneOptions = Pick<
   SolveOptions,
-  'includeAdditions' | 'clampFluxRatio' | 'additionClamp' | 'clampBoron'
+  'includeAdditions' | 'additionClamp' | 'umfTolerance'
 >;
 
 function regionKey(
@@ -60,20 +60,11 @@ function regionKey(
       return `${id}:${material.components.map((c) => `${c.oxide}=${c.amount}`).join(',')}`;
     })
     .join('|');
-  // The options decide what the solve freezes, the ratio it must hold and the
-  // boron it must hold, so all of them decide the region too.
-  return `${rowsKey}#${materialsKey}#adds:${options.includeAdditions === true}#clamp:${
-    options.clampFluxRatio === true
-  }#addClamp:${options.additionClamp ?? 'amount'}#boron:${options.clampBoron === true ? 1 : 0}`;
-}
-
-/**
- * Row indices the solve can move: a main row that does not already start at zero.
- * A main row sitting at zero is not a candidate, keeps its zero whatever the
- * target, and so must not be counted as one the region emptied.
- */
-function movableRows(rows: RecipeRow[]): Set<number> {
-  return new Set(rows.flatMap((row, index) => (row.kind === 'main' && row.amount !== 0 ? [index] : [])));
+  // The options decide what the solve freezes and the tolerance it holds, so
+  // both decide the region too.
+  return `${rowsKey}#${materialsKey}#adds:${options.includeAdditions === true}#addClamp:${
+    options.additionClamp ?? 'unity'
+  }#umf:${options.umfTolerance ?? 'off'}`;
 }
 
 function perpendicularDistance(point: Point, from: Point, to: Point): number {
@@ -180,15 +171,16 @@ let cachedKey: string | null = null;
 let cachedAreas: FeasibleAreas = { draggable: [], emptied: [] };
 
 /**
- * The two zones the Stull map draws, sampled one solve per grid cell and
- * memoised on the recipe rows, the oxide composition of the materials they
- * reference, and the solve options.
+ * The zone the Stull map draws, sampled one solve per grid cell and memoised on
+ * the recipe rows, the oxide composition of the materials they reference, and
+ * the solve options.
  *
- * `draggable` is what a drag accepts. `emptied` is the band just outside it:
- * targets the solve reaches only by clamping a carrier onto zero, which the page
- * refuses with a notice naming that material. Both are traced from the cells
- * themselves — a region that is thin, curved or non-convex draws as itself,
- * where a convex hull around it would either hide it or claim refused targets.
+ * `draggable` is what a drag accepts. A solve that drives a row to zero is
+ * accepted too — the row stays in the recipe at zero — so it belongs to the
+ * same zone. `emptied` is kept for the chart's shape and is always empty. The
+ * region is traced from the cells themselves — a region that is thin, curved or
+ * non-convex draws as itself, where a convex hull around it would either hide
+ * it or claim refused targets.
  */
 export function feasibleAreas(
   rows: RecipeRow[],
@@ -205,12 +197,8 @@ export function feasibleAreas(
   const ys = gridValues(STULL_BOX.minY, STULL_BOX.maxY, FEASIBLE_GRID_STEP_Y);
   const columns = Math.max(0, xs.length - 1);
   const rowCount = Math.max(0, ys.length - 1);
-  const movable = movableRows(rows);
 
   const draggableCells: boolean[][] = Array.from({ length: columns }, () =>
-    new Array<boolean>(rowCount).fill(false),
-  );
-  const emptiedCells: boolean[][] = Array.from({ length: columns }, () =>
     new Array<boolean>(rowCount).fill(false),
   );
 
@@ -226,16 +214,13 @@ export function feasibleAreas(
       const x = ((xs[column] ?? 0) + (xs[column + 1] ?? 0)) / 2;
       const y = ((ys[row] ?? 0) + (ys[row + 1] ?? 0)) / 2;
       const result = solveForStullTarget(rows, materials, { x, y }, { ...options, chemistry });
-      if (!result.ok) continue;
-      const emptied = result.rows.some((solved, index) => movable.has(index) && solved.amount <= 0);
-      if (emptied) emptiedCells[column]![row] = true;
-      else draggableCells[column]![row] = true;
+      if (result.ok) draggableCells[column]![row] = true;
     }
   }
 
   const areas: FeasibleAreas = {
     draggable: traceRings(draggableCells, xs, ys),
-    emptied: traceRings(emptiedCells, xs, ys),
+    emptied: [],
   };
   cachedKey = key;
   cachedAreas = areas;
@@ -243,8 +228,7 @@ export function feasibleAreas(
     key,
     cached: false,
     draggable: countCells(draggableCells),
-    emptied: countCells(emptiedCells),
-    rings: `${areas.draggable.length}/${areas.emptied.length}`,
+    rings: areas.draggable.length,
   });
   return areas;
 }

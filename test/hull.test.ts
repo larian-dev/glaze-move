@@ -28,7 +28,7 @@ type Scan = {
 
 /** Replays the region scan on the same cell grid, so the tests can see both
  *  populations the tracing is supposed to enclose. */
-function scan(rows: RecipeRow[]): Scan {
+function scan(rows: RecipeRow[], options: { umfTolerance?: number } = {}): Scan {
   const movable = new Set(rows.flatMap((row, index) => (row.kind === 'main' && row.amount !== 0 ? [index] : [])));
   const xs: number[] = [];
   for (let x = STULL_BOX.minX; x <= STULL_BOX.maxX + 1e-9; x += FEASIBLE_GRID_STEP_X) xs.push(Number(x.toFixed(6)));
@@ -50,7 +50,7 @@ function scan(rows: RecipeRow[]): Scan {
     for (let row = 0; row < rowCount; row += 1) {
       const centre = centres[column]?.[row];
       if (!centre) continue;
-      const result = solveForStullTarget(rows, materials, centre);
+      const result = solveForStullTarget(rows, materials, centre, options);
       if (!result.ok) continue;
       const emptiedHere = result.rows.some((solved, index) => movable.has(index) && solved.amount <= 0);
       if (emptiedHere) emptied[column]![row] = true;
@@ -96,10 +96,10 @@ function interiorCentres(cells: Scan, set: boolean[][]): { x: number; y: number 
 describe('feasibleAreas', () => {
   const areas = feasibleAreas(RECIPE, materials);
 
-  it('traces closed rings for both zones', () => {
+  it('traces closed rings for the draggable zone', () => {
     expect(areas.draggable.length).toBeGreaterThan(0);
-    expect(areas.emptied.length).toBeGreaterThan(0);
-    for (const ring of [...areas.draggable, ...areas.emptied]) {
+    expect(areas.emptied).toEqual([]);
+    for (const ring of areas.draggable) {
       expect(ring.length).toBeGreaterThanOrEqual(4);
       for (const point of ring) {
         expect(point.x).toBeGreaterThanOrEqual(STULL_BOX.minX - 1e-9);
@@ -119,24 +119,32 @@ describe('feasibleAreas', () => {
     }
   });
 
-  it('encloses the cells that fit only by emptying a row, and keeps them out of the draggable zone', () => {
+  it('includes cells that empty a row in the draggable zone', () => {
     const cells = scan(RECIPE);
     const interior = interiorCentres(cells, cells.emptied);
     expect(interior.length).toBeGreaterThan(0);
     for (const point of interior) {
-      expect(areas.emptied.some((ring) => insideRing(ring, point))).toBe(true);
-      expect(areas.draggable.some((ring) => insideRing(ring, point))).toBe(false);
+      expect(areas.draggable.some((ring) => insideRing(ring, point))).toBe(true);
     }
   });
 
   it('does not blame a main row that already started at zero', () => {
     // A zero-amount main row is not a solve candidate and stays zero for every
-    // target, so the two zones must not move.
+    // target, so the zone must not move.
     const withEmptyRow: RecipeRow[] = [
       ...RECIPE,
       { materialId: materials.get('2')!.id, amount: 0, kind: 'main' },
     ];
     expect(feasibleAreas(withEmptyRow, materials)).toEqual(areas);
+  });
+
+  it('narrows the draggable zone when the UMF tolerance is tight', () => {
+    const loose = scan(RECIPE, { umfTolerance: 1 });
+    const tight = scan(RECIPE, { umfTolerance: 0.01 });
+    const looseOnly = loose.draggable.some((column, x) =>
+      column.some((cell, y) => cell && tight.draggable[x]?.[y] !== true),
+    );
+    expect(looseOnly).toBe(true);
   });
 
   it('returns nothing for a recipe that reaches nothing', () => {
@@ -213,7 +221,7 @@ describe('debug output', () => {
     { materialId: '3', amount: 9.31, kind: 'main' },
     { materialId: '37', amount: 26.57, kind: 'additional' },
   ];
-  const options = { includeAdditions: true, clampFluxRatio: true };
+  const options = { includeAdditions: true };
 
   afterEach(() => {
     vi.unstubAllGlobals();

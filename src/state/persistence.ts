@@ -11,15 +11,13 @@ export type PersistedForm = {
   /** Whether `additional` rows join the chemistry (UMF, mole %, CTE, firing) or
    *  are treated as bench additions on top of the finished base. */
   includeAdditions: boolean;
-  /** Refuse any drag solve that would move the R₂O:RO ratio off its start. */
-  clampFluxRatio: boolean;
-  /** What a drag may do to the additions: hold their amount (the number the
-   *  recipe shows), hold their share of the flux (their unity value), or leave
-   *  them to the solver. */
+  /** What a drag may do to the additions: hold their share of the flux (their
+   *  unity value) within the UMF tolerance, or leave them to the solver. */
   additionClamp: AdditionClamp;
-  /** Hold the batch's unity B₂O₃ through a drag, so the boron map's marker
-   *  stays put while the Stull point moves. */
-  clampBoron: boolean;
+  /** Absolute UMF tolerance for the oxides a drag does not target: the target
+   *  recipe is the starting glaze with the new Si/Al values, and every other
+   *  unity value must stay within this distance. */
+  umfTolerance: number;
 };
 
 const STORAGE_KEY = 'glaze-calc.form';
@@ -31,9 +29,8 @@ export const DEFAULT_FORM: PersistedForm = {
   lang: 'en',
   roFlux: 'CaO',
   includeAdditions: true,
-  clampFluxRatio: false,
-  additionClamp: 'amount',
-  clampBoron: false,
+  additionClamp: 'unity',
+  umfTolerance: 0.01,
 };
 
 export function storage(): Storage | null {
@@ -125,15 +122,17 @@ function isUnitDisplay(value: unknown): value is PersistedForm['unitDisplay'] {
 }
 
 function isAdditionClamp(value: unknown): value is AdditionClamp {
-  return value === 'amount' || value === 'unity' || value === 'free';
+  return value === 'unity' || value === 'free';
 }
 
-/** The stored clamp wins. A form written before the three-way switch carries
- *  its boolean over — `true` held the amounts, `false` left them free — and an
- *  older form still carries the legacy global drag-solve flag. */
+/** The stored clamp wins. The removed `amount` state maps to the remaining
+ *  lock, `unity`; a form written before the switch carries its boolean over —
+ *  `true` locked, `false` ignored — and an older form still carries the legacy
+ *  global drag-solve flag. */
 function additionClampOf(raw: Record<string, unknown>, legacyExcluded: boolean): AdditionClamp {
   if (isAdditionClamp(raw.additionClamp)) return raw.additionClamp;
-  if (typeof raw.clampAdditions === 'boolean') return raw.clampAdditions ? 'amount' : 'free';
+  if (raw.additionClamp === 'amount') return 'unity';
+  if (typeof raw.clampAdditions === 'boolean') return raw.clampAdditions ? 'unity' : 'free';
   return legacyExcluded ? 'free' : DEFAULT_FORM.additionClamp;
 }
 
@@ -155,12 +154,15 @@ function parseForm(value: unknown): PersistedForm | null {
     // switch; those keep the behaviour they had, as they always did.
     includeAdditions:
       typeof raw.includeAdditions === 'boolean' ? raw.includeAdditions : DEFAULT_FORM.includeAdditions,
-    clampFluxRatio:
-      typeof raw.clampFluxRatio === 'boolean' ? raw.clampFluxRatio : DEFAULT_FORM.clampFluxRatio,
     // The stored clamp wins; the legacy global flag only speaks when the new
     // key is absent, which is exactly the forms it was written for.
     additionClamp: additionClampOf(raw, legacyExcluded),
-    clampBoron: typeof raw.clampBoron === 'boolean' ? raw.clampBoron : DEFAULT_FORM.clampBoron,
+    umfTolerance:
+      typeof raw.umfTolerance === 'number' &&
+      Number.isFinite(raw.umfTolerance) &&
+      raw.umfTolerance >= 0
+        ? raw.umfTolerance
+        : DEFAULT_FORM.umfTolerance,
   };
 }
 

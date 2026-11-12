@@ -144,6 +144,31 @@ h3 {
   margin: 0;
 }
 
+/* The Stull header carries three switches and the UMF tolerance field; let it
+   wrap instead of squeezing the number input. */
+.panel-head--stull {
+  flex-wrap: wrap;
+}
+
+.tolerance-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tolerance-field input {
+  width: 64px;
+  height: 28px;
+  padding: 2px 6px;
+  font: inherit;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
 .panel-tools {
   display: flex;
   gap: 8px;
@@ -407,12 +432,6 @@ h3 {
   width: 100%;
 }
 
-/* An amount the additions clamp holds — its `amount` state — in the same green
-   the UMF panel tints the entries its clamps hold. */
-.recipe-field input.recipe-amount--clamped {
-  background: var(--clamp);
-}
-
 /* Drag handle: pointer-drag reorders the row, or moves it between sections. */
 .recipe-handle {
   display: inline-flex;
@@ -492,8 +511,7 @@ h3 {
 }
 
 /* A pill switch: a track-and-knob graphic; aria-checked drives the knob and
-   the accent. Used by the Additional header, every additional row and the
-   Stull panel's flux-ratio clamp. */
+   the accent. Used by the Additional header and every additional row. */
 .recipe-toggle {
   display: inline-flex;
   align-items: center;
@@ -732,11 +750,6 @@ h3 {
   padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
-}
-
-/* The R₂O:RO clamp holds a ratio, not an entry: the tile is where it lives. */
-.umf-ratio-tile--clamped {
-  background: var(--clamp);
 }
 
 .umf-ratio-label {
